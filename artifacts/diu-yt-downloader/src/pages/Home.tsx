@@ -273,30 +273,30 @@ export default function Home() {
                     </div>
                     
                     {/* Info Section */}
-                    <div className="flex-1 p-6 md:p-8 flex flex-col justify-center">
-                      <Badge variant="outline" className="w-fit mb-3 bg-secondary/10 text-secondary border-secondary/30">
+                    <div className="flex-1 p-4 md:p-5 flex flex-col justify-center">
+                      <Badge variant="outline" className="w-fit mb-2 bg-secondary/10 text-secondary border-secondary/30">
                         Ready to download
                       </Badge>
                       <h2 
-                        className="text-2xl font-bold leading-tight mb-2 line-clamp-2 text-foreground"
+                        className="text-lg font-bold leading-tight mb-1 line-clamp-2 text-foreground"
                         data-testid="text-video-title"
                         title={videoInfo.title}
                       >
                         {videoInfo.title}
                       </h2>
                       
-                      <div className="flex flex-wrap items-center gap-4 text-muted-foreground mt-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-foreground/10 flex items-center justify-center">
-                            <Youtube className="w-4 h-4 text-foreground" />
+                      <div className="flex flex-wrap items-center gap-3 text-muted-foreground mt-2">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center">
+                            <Youtube className="w-3 h-3 text-foreground" />
                           </div>
-                          <span className="font-medium text-foreground/90" data-testid="text-channel-name">
+                          <span className="text-sm font-medium text-foreground/90" data-testid="text-channel-name">
                             {videoInfo.channelName}
                           </span>
                         </div>
                         {videoInfo.viewCount && (
-                          <div className="flex items-center gap-1.5 text-sm">
-                            <Eye className="w-4 h-4 opacity-60" />
+                          <div className="flex items-center gap-1 text-xs">
+                            <Eye className="w-3 h-3 opacity-60" />
                             {formatViews(videoInfo.viewCount)}
                           </div>
                         )}
