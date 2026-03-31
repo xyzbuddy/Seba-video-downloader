@@ -264,7 +264,7 @@ export default function Home() {
             >
               <Card className="bg-card/40 backdrop-blur-xl border-border shadow-2xl overflow-hidden rounded-3xl">
                 <CardContent className="p-0">
-                  <div className="flex flex-col md:flex-row border-b border-border">
+                  <div className="flex flex-col md:flex-row border-b border-border ml-[70px] mr-[70px]">
                     {/* Thumbnail Section */}
                     <div className="w-full md:w-[40%] lg:w-[45%] relative group">
                       <div className="aspect-video relative overflow-hidden bg-black/50">
