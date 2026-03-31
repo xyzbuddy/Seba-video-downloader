@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Youtube, Info, AlertCircle, Play, Eye, Sun, Moon } from "lucide-react";
+import { Download, Youtube, Info, AlertCircle, Play, Eye, Sun, Moon, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -75,6 +75,12 @@ export default function Home() {
         variant: "destructive"
       });
     }
+  };
+
+  const handleClear = () => {
+    setInputUrl("");
+    setActiveUrl("");
+    setSelectedFormatId(null);
   };
 
   // Auto-fetch when a valid YouTube URL is detected in the input
@@ -248,6 +254,23 @@ export default function Home() {
               onChange={(e) => setInputUrl(e.target.value)}
               disabled={isFetchingInfo}
             />
+            <AnimatePresence>
+              {inputUrl && (
+                <motion.button
+                  type="button"
+                  key="clear-btn"
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={handleClear}
+                  aria-label="Clear URL"
+                  className="flex-shrink-0 mr-1 p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors duration-150"
+                >
+                  <X className="w-4 h-4" />
+                </motion.button>
+              )}
+            </AnimatePresence>
             <div className="pr-2 md:pr-3">
               <Button 
                 type="button"
