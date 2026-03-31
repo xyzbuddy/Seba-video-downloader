@@ -293,7 +293,7 @@ export default function Home() {
               transition={{ duration: 0.6, type: "spring", bounce: 0.4 }}
               className="w-full max-w-5xl"
             >
-              <Card className="bg-card/40 backdrop-blur-xl border-border shadow-2xl overflow-hidden rounded-3xl">
+              <Card className="bg-card/40 backdrop-blur-xl border-border shadow-2xl overflow-hidden rounded-3xl border-t-[0px] border-r-[0px] border-b-[0px] border-l-[0px] rounded-tl-[0px] rounded-tr-[0px] rounded-br-[0px] rounded-bl-[0px] ml-[60px] mr-[60px]">
                 <CardContent className="p-0 border-t-[0px] border-r-[0px] border-b-[0px] border-l-[0px] rounded-tl-[0px] rounded-tr-[0px] rounded-br-[0px] rounded-bl-[0px] ml-[50px] mr-[50px] mt-[0px] mb-[0px] pl-[0px] pr-[0px] pt-[0px] pb-[0px] text-[18px]">
                   <div className="flex flex-col md:flex-row border-b border-border">
                     {/* Thumbnail Section */}
