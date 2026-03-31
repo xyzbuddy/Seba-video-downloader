@@ -444,7 +444,7 @@ export default function Home() {
           Please respect YouTube's Terms of Service and copyright laws. Do not download copyrighted material without permission.
         </p>
         <p className="text-xs text-muted-foreground">
-          Crafted with love by{" "}
+          Crafted with love ❤️‍🔥 by{" "}
           <a
             href="https://github.com/xyzbuddy"
             target="_blank"
