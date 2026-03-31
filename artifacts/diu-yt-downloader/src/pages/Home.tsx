@@ -305,15 +305,15 @@ export default function Home() {
                   </div>
 
                   {/* Resolution Selection Area */}
-                  <div className="p-6 md:p-8 bg-foreground/5">
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <Download className="w-5 h-5 text-primary" />
+                  <div className="p-4 md:p-5 bg-foreground/5">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <Download className="w-4 h-4 text-primary" />
                         Select Resolution
                       </h3>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">
                       {videoInfo.formats.map((format) => {
                         const isSelected = selectedFormatId === format.formatId;
                         return (
@@ -322,9 +322,9 @@ export default function Home() {
                             data-testid={`card-format-${format.formatId}`}
                             onClick={() => setSelectedFormatId(format.formatId)}
                             className={`
-                              relative flex flex-col items-center justify-center p-4 rounded-2xl border transition-all duration-300
+                              relative flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all duration-300
                               ${isSelected 
-                                ? 'bg-primary/10 border-primary shadow-[0_0_15px_-3px_hsl(var(--primary)/0.3)]' 
+                                ? 'bg-primary/10 border-primary shadow-[0_0_12px_-3px_hsl(var(--primary)/0.3)]' 
                                 : 'bg-foreground/5 border-border hover:bg-foreground/10 hover:border-foreground/20'
                               }
                             `}
@@ -332,23 +332,15 @@ export default function Home() {
                             {isSelected && (
                               <motion.div 
                                 layoutId="activeFormat"
-                                className="absolute inset-0 rounded-2xl border-2 border-primary"
+                                className="absolute inset-0 rounded-xl border-2 border-primary"
                                 initial={false}
                                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                               />
                             )}
-                            <span className={`text-xl font-bold mb-1 ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                            <span className={`text-base font-bold leading-tight ${isSelected ? 'text-primary' : 'text-foreground'}`}>
                               {format.quality}
                             </span>
-                            <div className="flex items-center gap-2 text-xs font-mono">
-                              <span className="uppercase text-muted-foreground">{format.ext}</span>
-                              {format.filesize && (
-                                <>
-                                  <span className="text-foreground/20">•</span>
-                                  <span className="text-muted-foreground">{formatFileSize(format.filesize)}</span>
-                                </>
-                              )}
-                            </div>
+                            <span className="text-xs font-mono uppercase text-muted-foreground">{format.ext}</span>
                           </button>
                         );
                       })}
@@ -357,12 +349,11 @@ export default function Home() {
                     {/* Download Action */}
                     <div className="flex justify-center">
                       <Button
-                        size="lg"
                         data-testid="button-download"
                         disabled={!selectedFormatId || isGettingDownloadUrl}
                         onClick={handleDownload}
                         className={`
-                          w-full md:w-auto min-w-[280px] h-16 rounded-xl text-lg font-bold transition-all duration-300
+                          w-full md:w-auto min-w-[200px] h-10 rounded-lg text-sm font-semibold transition-all duration-300
                           ${selectedFormatId 
                             ? 'bg-primary hover:bg-primary/90 text-white animate-[pulse-glow_2s_infinite]' 
                             : 'bg-foreground/5 text-foreground/40 cursor-not-allowed'
@@ -371,12 +362,12 @@ export default function Home() {
                       >
                         {isGettingDownloadUrl ? (
                           <>
-                            <Spinner className="w-5 h-5 mr-3" />
+                            <Spinner className="w-4 h-4 mr-2" />
                             Generating Link...
                           </>
                         ) : selectedFormatId ? (
                           <>
-                            <Download className="w-6 h-6 mr-3" />
+                            <Download className="w-4 h-4 mr-2" />
                             Download {selectedFormat?.quality}
                           </>
                         ) : (
