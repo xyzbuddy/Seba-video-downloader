@@ -283,7 +283,7 @@ export default function Home() {
                     </div>
                     
                     {/* Info Section */}
-                    <div className="flex-1 p-4 md:p-5 flex flex-col justify-center">
+                    <div className="flex-1 p-4 md:p-5 flex flex-col justify-center ml-[75px] mr-[75px]">
                       <Badge variant="outline" className="w-fit mb-2 bg-secondary/10 text-secondary border-secondary/30">
                         Ready to download
                       </Badge>
