@@ -236,8 +236,8 @@ export default function Home() {
             onSubmit={handleFetch}
             className="relative flex items-center w-full bg-input/50 backdrop-blur-md rounded-2xl border border-border shadow-2xl overflow-hidden focus-within:ring-2 focus-within:ring-primary/50 transition-all duration-300"
           >
-            <div className="pl-6 pr-2 text-muted-foreground flex-shrink-0">
-              <Youtube className="w-6 h-6 opacity-60" />
+            <div className="pl-6 pr-2 flex-shrink-0">
+              <Youtube className="w-6 h-6 text-[#FF0000]" />
             </div>
             <Input 
               type="url"
