@@ -47,6 +47,18 @@ export default function Home() {
     setActiveUrl(inputUrl);
   };
 
+  // Auto-fetch when a valid YouTube URL is detected in the input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const trimmed = inputUrl.trim();
+      if (trimmed && isValidYoutubeUrl(trimmed) && trimmed !== activeUrl) {
+        setSelectedFormatId(null);
+        setActiveUrl(trimmed);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [inputUrl]);
+
   // Video Info Query
   const { 
     data: videoInfo, 
