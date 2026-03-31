@@ -413,6 +413,17 @@ export default function Home() {
           </span>
           Please respect YouTube's Terms of Service and copyright laws. Do not download copyrighted material without permission.
         </p>
+        <p className="text-xs text-muted-foreground">
+          Crafted with love by{" "}
+          <a
+            href="https://github.com/xyzbuddy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground transition-colors"
+          >
+            xyzbuddy
+          </a>
+        </p>
       </footer>
     </div>
   );
