@@ -207,7 +207,7 @@ export default function Home() {
                 data-testid="button-fetch-video"
                 className="h-12 md:h-14 px-6 md:px-10 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold text-lg transition-all duration-300 shadow-[0_0_20px_-5px_hsl(var(--primary))] hover:shadow-[0_0_30px_-5px_hsl(var(--primary))] disabled:opacity-50 disabled:shadow-none"
               >
-                {isFetchingInfo ? <Spinner className="w-5 h-5 mr-2" /> : "Fetch"}
+                {isFetchingInfo ? <Spinner className="w-5 h-5 mr-2" /> : "Paste"}
               </Button>
             </div>
           </form>
