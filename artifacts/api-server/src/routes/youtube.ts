@@ -1,5 +1,12 @@
 import { Router, type IRouter } from "express";
-import ytdl from "@distube/ytdl-core";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import path from "path";
+
+const execFileAsync = promisify(execFile);
+
+// Use the bundled yt-dlp binary (artifacts/api-server/yt-dlp)
+const YT_DLP = path.join(process.cwd(), "yt-dlp");
 
 const router: IRouter = Router();
 
@@ -13,24 +20,19 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function getQualityLabel(format: ytdl.videoFormat): string {
-  if (!format.qualityLabel) return "Unknown";
-  return format.qualityLabel;
+function isValidYoutubeUrl(url: string): boolean {
+  return /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)/.test(url);
 }
 
-function normalizeQualityLabel(label: string): string {
-  const match = label.match(/(\d+)p/);
-  if (!match) return label;
-  const height = parseInt(match[1]);
-  if (height >= 2160) return "4K";
-  if (height >= 1440) return "1440p";
-  if (height >= 1080) return "1080p";
-  if (height >= 720) return "720p";
-  if (height >= 480) return "480p";
-  if (height >= 360) return "360p";
-  if (height >= 240) return "240p";
-  return label;
-}
+const QUALITY_HEIGHTS = [2160, 1440, 1080, 720, 480, 360];
+const QUALITY_LABELS: Record<number, string> = {
+  2160: "4K",
+  1440: "1440p",
+  1080: "1080p",
+  720: "720p",
+  480: "480p",
+  360: "360p",
+};
 
 router.get("/youtube/info", async (req, res) => {
   const { url } = req.query as { url?: string };
@@ -40,111 +42,87 @@ router.get("/youtube/info", async (req, res) => {
     return;
   }
 
-  if (!ytdl.validateURL(url)) {
+  if (!isValidYoutubeUrl(url)) {
     res.status(400).json({ error: "INVALID_URL", message: "Invalid YouTube URL" });
     return;
   }
 
   try {
-    const info = await ytdl.getInfo(url, {
-      requestOptions: {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
-      },
-    });
+    const { stdout } = await execFileAsync(
+      YT_DLP,
+      ["--dump-json", "--no-playlist", url],
+      { timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
+    );
 
-    const { videoDetails, formats } = info;
+    const info = JSON.parse(stdout);
 
-    const seen = new Set<string>();
-    const uniqueFormats: Array<{
-      formatId: string;
-      quality: string;
-      resolution: string;
-      filesize?: number;
-      ext: string;
-      hasVideo: boolean;
-      hasAudio: boolean;
-    }> = [];
-
-    const videoFormats = formats
-      .filter((f) => f.hasVideo && f.qualityLabel)
-      .sort((a, b) => {
-        const aH = parseInt((a.qualityLabel || "0p").replace(/\D/g, "")) || 0;
-        const bH = parseInt((b.qualityLabel || "0p").replace(/\D/g, "")) || 0;
-        return bH - aH;
-      });
-
-    for (const f of videoFormats) {
-      const qualLabel = normalizeQualityLabel(getQualityLabel(f));
-      const key = `${qualLabel}-${f.container}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      uniqueFormats.push({
-        formatId: f.itag.toString(),
-        quality: qualLabel,
-        resolution: f.qualityLabel || qualLabel,
-        filesize: f.contentLength ? parseInt(f.contentLength) : undefined,
-        ext: f.container || "mp4",
-        hasVideo: f.hasVideo,
-        hasAudio: f.hasAudio,
-      });
-    }
-
-    if (uniqueFormats.length === 0) {
-      const fallback = formats.filter((f) => f.hasVideo).slice(0, 3);
-      for (const f of fallback) {
-        uniqueFormats.push({
-          formatId: f.itag.toString(),
-          quality: getQualityLabel(f) || "Standard",
-          resolution: f.qualityLabel || "Standard",
-          filesize: f.contentLength ? parseInt(f.contentLength) : undefined,
-          ext: f.container || "mp4",
-          hasVideo: f.hasVideo,
-          hasAudio: f.hasAudio,
-        });
+    // Collect unique heights from video-capable formats
+    const availableHeights = new Set<number>();
+    for (const fmt of (info.formats || []) as Array<{
+      height?: number;
+      vcodec?: string;
+    }>) {
+      if (fmt.height && fmt.vcodec && fmt.vcodec !== "none") {
+        availableHeights.add(fmt.height);
       }
     }
 
-    const duration = parseInt(videoDetails.lengthSeconds) || 0;
+    const maxHeight = availableHeights.size > 0 ? Math.max(...availableHeights) : 720;
+
+    // Build quality presets up to the video's max height
+    const formats = QUALITY_HEIGHTS
+      .filter((h) => h <= maxHeight)
+      .map((h) => ({
+        formatId: `height_${h}`,
+        quality: QUALITY_LABELS[h] || `${h}p`,
+        resolution: `${h}p`,
+        ext: "mp4",
+        hasVideo: true,
+        hasAudio: true,
+      }));
+
+    // Fallback: always show at least 720p if no formats detected
+    if (formats.length === 0) {
+      formats.push({
+        formatId: "height_720",
+        quality: "720p",
+        resolution: "720p",
+        ext: "mp4",
+        hasVideo: true,
+        hasAudio: true,
+      });
+    }
+
+    const thumbnails = (info.thumbnails || []) as Array<{ url: string; width?: number }>;
+    const thumbnail =
+      thumbnails.sort((a, b) => (b.width || 0) - (a.width || 0))[0]?.url ||
+      `https://img.youtube.com/vi/${info.id}/maxresdefault.jpg`;
 
     res.json({
-      id: videoDetails.videoId,
-      title: videoDetails.title,
-      thumbnail:
-        videoDetails.thumbnails?.sort((a, b) => (b.width || 0) - (a.width || 0))[0]?.url ||
-        `https://img.youtube.com/vi/${videoDetails.videoId}/maxresdefault.jpg`,
-      channelName: videoDetails.author?.name || "Unknown Channel",
-      duration,
-      durationFormatted: formatDuration(duration),
-      viewCount: videoDetails.viewCount ? parseInt(videoDetails.viewCount) : undefined,
-      formats: uniqueFormats,
+      id: info.id,
+      title: info.title,
+      thumbnail,
+      channelName: info.uploader || info.channel || "Unknown Channel",
+      duration: info.duration || 0,
+      durationFormatted: formatDuration(info.duration || 0),
+      viewCount: info.view_count ?? undefined,
+      formats,
     });
   } catch (err: unknown) {
-    const error = err as Error;
+    const error = err as Error & { stderr?: string };
     req.log.error({ err: error }, "Failed to fetch video info");
 
-    if (error.message?.includes("private") || error.message?.includes("unavailable")) {
-      res.status(400).json({
-        error: "VIDEO_UNAVAILABLE",
-        message: "This video is private or unavailable",
-      });
+    const msg = (error.message || "") + (error.stderr || "");
+    if (msg.includes("Private video") || msg.includes("not available") || msg.includes("This video is unavailable")) {
+      res.status(400).json({ error: "VIDEO_UNAVAILABLE", message: "This video is private or unavailable" });
       return;
     }
-    if (error.message?.includes("age")) {
-      res.status(400).json({
-        error: "AGE_RESTRICTED",
-        message: "This video is age-restricted and cannot be downloaded",
-      });
+    if (msg.includes("age")) {
+      res.status(400).json({ error: "AGE_RESTRICTED", message: "This video is age-restricted and cannot be downloaded" });
       return;
     }
 
-    res.status(500).json({
-      error: "FETCH_FAILED",
-      message: "Failed to fetch video information. Please try again.",
-    });
+    res.status(500).json({ error: "FETCH_FAILED", message: "Failed to fetch video information. Please try again." });
   }
 });
 
@@ -156,56 +134,43 @@ router.get("/youtube/download-url", async (req, res) => {
   };
 
   if (!url || !formatId || !quality) {
-    res.status(400).json({
-      error: "BAD_REQUEST",
-      message: "url, formatId, and quality parameters are required",
-    });
+    res.status(400).json({ error: "BAD_REQUEST", message: "url, formatId, and quality parameters are required" });
     return;
   }
 
-  if (!ytdl.validateURL(url)) {
+  if (!isValidYoutubeUrl(url)) {
     res.status(400).json({ error: "INVALID_URL", message: "Invalid YouTube URL" });
     return;
   }
 
   try {
-    const info = await ytdl.getInfo(url, {
-      requestOptions: {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
-      },
-    });
+    const height = formatId.replace("height_", "");
+    // Prefer combined mp4 streams; fall back to best available
+    const formatSelector = `best[height<=${height}][ext=mp4]/best[height<=${height}]/bestvideo[height<=${height}]+bestaudio/best`;
 
-    const format = info.formats.find((f) => f.itag.toString() === formatId);
+    const { stdout } = await execFileAsync(
+      YT_DLP,
+      ["-f", formatSelector, "--get-url", "--no-playlist", url],
+      { timeout: 30000 }
+    );
 
-    if (!format || !format.url) {
-      res.status(400).json({
-        error: "FORMAT_NOT_FOUND",
-        message: "The selected format is not available for this video",
-      });
+    // yt-dlp may output two lines (video + audio) when merging; use first (direct stream)
+    const downloadUrl = stdout.trim().split("\n")[0];
+
+    if (!downloadUrl) {
+      res.status(500).json({ error: "NO_URL", message: "Could not retrieve download URL" });
       return;
     }
 
-    const title = info.videoDetails.title
-      .replace(/[^\w\s-]/g, "")
-      .replace(/\s+/g, "_")
-      .substring(0, 80);
-    const filename = `${title}_${quality}.${format.container || "mp4"}`;
-
     res.json({
-      downloadUrl: format.url,
-      filename,
+      downloadUrl,
+      filename: `video_${quality}.mp4`,
       quality,
     });
   } catch (err: unknown) {
     const error = err as Error;
     req.log.error({ err: error }, "Failed to get download URL");
-    res.status(500).json({
-      error: "DOWNLOAD_FAILED",
-      message: "Failed to generate download URL. Please try again.",
-    });
+    res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Failed to generate download URL. Please try again." });
   }
 });
 
