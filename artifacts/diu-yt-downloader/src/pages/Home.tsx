@@ -346,7 +346,7 @@ export default function Home() {
                   </div>
 
                   {/* Resolution Selection Area */}
-                  <div className="p-4 md:p-5 bg-foreground/5 ml-[70px] mr-[70px]">
+                  <div className="p-4 md:p-5 bg-foreground/5 ml-[0px] mr-[0px]">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-semibold flex items-center gap-1.5">
                         <Download className="w-4 h-4 text-primary" />
