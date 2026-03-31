@@ -148,7 +148,6 @@ export default function Home() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-between p-4 md:p-8 lg:p-12">
-
       {/* Theme Toggle Button */}
       <button
         data-testid="button-theme-toggle"
@@ -162,7 +161,6 @@ export default function Home() {
           <Moon className="w-5 h-5" />
         )}
       </button>
-
       {/* Main Content Wrapper */}
       <main className="w-full max-w-4xl flex-1 flex flex-col items-center justify-center gap-12 mt-10 md:mt-20 mb-20">
         
@@ -317,7 +315,7 @@ export default function Home() {
                   </div>
 
                   {/* Resolution Selection Area */}
-                  <div className="p-4 md:p-5 bg-foreground/5">
+                  <div className="p-4 md:p-5 bg-foreground/5 ml-[150px] mr-[150px]">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-semibold flex items-center gap-1.5">
                         <Download className="w-4 h-4 text-primary" />
@@ -430,7 +428,6 @@ export default function Home() {
         </AnimatePresence>
 
       </main>
-
       {/* Footer */}
       <footer className="w-full py-6 flex flex-col items-center justify-center gap-2 border-t border-border text-center mt-auto">
         <div className="flex items-center gap-2 opacity-60">
