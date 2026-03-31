@@ -260,13 +260,13 @@ export default function Home() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, type: "spring", bounce: 0.4 }}
-              className="w-full max-w-4xl"
+              className="w-full max-w-5xl"
             >
               <Card className="bg-card/40 backdrop-blur-xl border-border shadow-2xl overflow-hidden rounded-3xl">
                 <CardContent className="p-0">
-                  <div className="flex flex-col md:flex-row border-b border-border ml-[70px] mr-[70px]">
+                  <div className="flex flex-col md:flex-row border-b border-border">
                     {/* Thumbnail Section */}
-                    <div className="w-full md:w-[40%] lg:w-[45%] relative group">
+                    <div className="w-full md:w-1/2 relative group">
                       <div className="aspect-video relative overflow-hidden bg-black/50">
                         <img 
                           src={videoInfo.thumbnail} 
@@ -283,7 +283,7 @@ export default function Home() {
                     </div>
                     
                     {/* Info Section */}
-                    <div className="flex-1 p-4 md:p-5 flex flex-col justify-center ml-[75px] mr-[75px]">
+                    <div className="w-full md:w-1/2 p-4 md:p-5 flex flex-col justify-center">
                       <Badge variant="outline" className="w-fit mb-2 bg-secondary/10 text-secondary border-secondary/30">
                         Ready to download
                       </Badge>
