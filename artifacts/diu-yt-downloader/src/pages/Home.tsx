@@ -13,8 +13,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   useGetVideoInfo,
   getGetVideoInfoQueryKey,
-  useGetDownloadUrl,
-  getGetDownloadUrlQueryKey
 } from "@workspace/api-client-react";
 
 export default function Home() {
@@ -92,42 +90,25 @@ export default function Home() {
     return videoInfo.formats.find(f => f.formatId === selectedFormatId);
   }, [videoInfo, selectedFormatId]);
 
-  // Download URL Query (triggered manually via refetch)
-  const {
-    refetch: triggerDownload,
-    isFetching: isGettingDownloadUrl
-  } = useGetDownloadUrl(
-    { 
-      url: activeUrl, 
-      formatId: selectedFormatId || "", 
-      quality: selectedFormat?.quality || "" 
-    },
-    {
-      query: {
-        enabled: false,
-        queryKey: getGetDownloadUrlQueryKey({ 
-          url: activeUrl, 
-          formatId: selectedFormatId || "", 
-          quality: selectedFormat?.quality || "" 
-        })
-      }
-    }
-  );
+  const isGettingDownloadUrl = false;
 
-  const handleDownload = async () => {
-    if (!selectedFormat) return;
-    
+  const handleDownload = () => {
+    if (!selectedFormat || !activeUrl) return;
+
     try {
-      const { data } = await triggerDownload();
-      if (data && data.downloadUrl) {
-        window.open(data.downloadUrl, '_blank');
-        toast({
-          title: "Download started",
-          description: `Downloading ${selectedFormat.quality} video...`,
-        });
-      } else {
-        throw new Error("No download URL returned");
-      }
+      const params = new URLSearchParams({
+        url: activeUrl,
+        formatId: selectedFormatId || "",
+        quality: selectedFormat.quality,
+        title: videoInfo?.title || "video",
+      });
+      // Navigate to the streaming endpoint — the Content-Disposition: attachment
+      // header makes the browser download the file directly instead of opening a tab
+      window.location.href = `/api/youtube/download?${params.toString()}`;
+      toast({
+        title: "Download started",
+        description: `Downloading ${selectedFormat.quality} video...`,
+      });
     } catch (err) {
       toast({
         title: "Download failed",

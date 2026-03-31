@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import path from "path";
 
@@ -174,4 +174,69 @@ router.get("/youtube/download-url", async (req, res) => {
   }
 });
 
+// Streaming download endpoint — pipes yt-dlp output directly to the browser
+// with Content-Disposition: attachment to force a real file download
+router.get("/youtube/download", (req, res) => {
+  const { url, formatId, quality, title } = req.query as {
+    url?: string;
+    formatId?: string;
+    quality?: string;
+    title?: string;
+  };
+
+  if (!url || !formatId || !quality) {
+    res.status(400).json({ error: "BAD_REQUEST", message: "url, formatId, and quality parameters are required" });
+    return;
+  }
+
+  if (!isValidYoutubeUrl(url)) {
+    res.status(400).json({ error: "INVALID_URL", message: "Invalid YouTube URL" });
+    return;
+  }
+
+  const height = formatId.replace("height_", "");
+  // Use combined streams only so yt-dlp can pipe a single file to stdout
+  const formatSelector = `best[height<=${height}][ext=mp4]/best[height<=${height}]`;
+
+  // Build a safe filename from the title
+  const safeName = (title || "video")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .slice(0, 80);
+  const filename = `${safeName}_${quality}.mp4`;
+
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Type", "video/mp4");
+
+  const ytProcess = spawn(YT_DLP, [
+    "-f", formatSelector,
+    "-o", "-",
+    "--no-playlist",
+    "--no-warnings",
+    url,
+  ]);
+
+  ytProcess.stdout.pipe(res);
+
+  ytProcess.stderr.on("data", (chunk: Buffer) => {
+    req.log.warn({ stderr: chunk.toString() }, "yt-dlp download stderr");
+  });
+
+  ytProcess.on("error", (err: Error) => {
+    req.log.error({ err }, "yt-dlp spawn error");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Download process failed" });
+    } else {
+      res.destroy();
+    }
+  });
+
+  // If the client disconnects, kill the yt-dlp process to free resources
+  req.on("close", () => {
+    if (!ytProcess.killed) ytProcess.kill();
+  });
+});
+
 export default router;
+
