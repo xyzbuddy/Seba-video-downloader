@@ -47,6 +47,36 @@ export default function Home() {
     setActiveUrl(inputUrl);
   };
 
+  // Paste button: reads clipboard and auto-fetches if it's a YouTube URL
+  const handlePaste = async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (isValidYoutubeUrl(text)) {
+        setInputUrl(text);
+        setSelectedFormatId(null);
+        setActiveUrl(text);
+      } else if (text) {
+        toast({
+          title: "Not a YouTube link",
+          description: "The clipboard doesn't contain a valid YouTube URL.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Clipboard is empty",
+          description: "Copy a YouTube link first, then click Paste.",
+        });
+      }
+    } catch {
+      // Clipboard API not available — fall back to manual paste in the field
+      toast({
+        title: "Clipboard access denied",
+        description: "Please paste the link directly into the field and press Enter.",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Auto-fetch when a valid YouTube URL is detected in the input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -220,9 +250,10 @@ export default function Home() {
             />
             <div className="pr-2 md:pr-3">
               <Button 
-                type="submit" 
+                type="button"
                 size="lg"
-                disabled={!inputUrl.trim() || isFetchingInfo}
+                onClick={handlePaste}
+                disabled={isFetchingInfo}
                 data-testid="button-fetch-video"
                 className="h-12 md:h-14 px-6 md:px-10 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold text-lg transition-all duration-300 shadow-[0_0_20px_-5px_hsl(var(--primary))] hover:shadow-[0_0_30px_-5px_hsl(var(--primary))] disabled:opacity-50 disabled:shadow-none"
               >
