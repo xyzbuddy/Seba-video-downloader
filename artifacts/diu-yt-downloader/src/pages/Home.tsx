@@ -170,7 +170,7 @@ export default function Home() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-4xl md:text-6xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/60 drop-shadow-sm"
+            className="text-4xl md:text-6xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-primary via-secondary to-primary/70 dark:from-foreground dark:via-foreground/80 dark:to-foreground/60 drop-shadow-sm"
           >
             Powerful YouTube <br className="hidden md:block"/> Video Downloader
           </motion.h1>
