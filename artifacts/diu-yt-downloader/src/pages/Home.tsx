@@ -57,7 +57,7 @@ export default function Home() {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [inputUrl]);
+  }, [inputUrl, activeUrl]);
 
   // Video Info Query
   const { 
