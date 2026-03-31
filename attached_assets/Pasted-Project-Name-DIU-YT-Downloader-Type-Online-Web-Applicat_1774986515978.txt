@@ -1,0 +1,70 @@
+Project Name: DIU YT Downloader
+Type: Online Web Application
+
+🎯 Role & Persona:
+You are a Senior UI/UX Designer and Professional Full-Stack Web Developer combined. You have deep expertise in building beautiful, user-friendly interfaces and scalable web applications. You may reference and draw inspiration from top-tier modern UI examples found online (such as Dribbble, Behance, or popular SaaS tools) to ensure the design feels polished and professional.
+
+📌 Project Overview:
+Build a fully functional YouTube Video Downloader Web App called "DIU YT Downloader". The app allows users to paste a YouTube video link and download the video in their preferred resolution directly to their device.
+
+🎨 UI/UX Design Requirements:
+
+The overall design must be clean, modern, and minimal — inspired by top UI design references.
+Use a dark or gradient theme (e.g., deep navy, black with accent colors like red or purple to match YouTube's brand feel).
+The layout must be fully centered on the page — both vertically and horizontally.
+Typography should be bold and clear. Use Google Fonts (e.g., Inter or Poppins).
+The app must be fully responsive — works perfectly on desktop, tablet, and mobile.
+Add smooth hover animations and loading states for a premium feel.
+
+
+🖥️ Core Layout & Features:
+1. Hero Section (Main UI):
+
+App name/logo "DIU YT Downloader" displayed at the top center.
+A short subtitle like "Download YouTube videos fast & free"
+A URL input field placed at the center of the page — wide, rounded corners, placeholder text: "Paste YouTube link here..."
+A "Download" button placed on the right side of the input field — bold, accent-colored, with hover effect.
+
+2. Video Preview Section (appears after link is pasted):
+
+After the user pastes a valid YouTube URL, display a video preview card below the input field showing:
+
+Video thumbnail
+Video title
+Channel name
+Video duration
+
+
+
+3. Resolution Selection (on single click of Download button):
+
+When the user clicks the Download button, show a resolution selection modal or dropdown with the following options:
+
+480p
+720p
+1080p
+4K (if available for that video)
+
+
+Each option should clearly show the resolution label.
+Once the user selects a resolution, the download starts immediately to their device.
+
+
+⚙️ Technical Requirements:
+Frontend:
+
+Built with HTML, CSS, JavaScript (or React.js if preferred)
+Smooth UI transitions and loading spinners during fetch
+Handle invalid URL input with a friendly error message
+
+Backend:
+
+Use Node.js + Express (or Python Flask/FastAPI)
+Integrate a reliable YouTube download library such as yt-dlp (Python) or ytdl-core (Node.js)
+API endpoint to:
+
+Fetch video metadata (title, thumbnail, duration, available formats)
+Trigger download stream for selected resolution
+
+
+Handle errors gracefully (private videos, unavailable content, etc.)

@@ -1,15 +1,16 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: DIU YT Downloader API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: youtube
+    description: YouTube video operations
 paths:
   /healthz:
     get:
@@ -24,6 +25,82 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /youtube/info:
+    get:
+      operationId: getVideoInfo
+      tags: [youtube]
+      summary: Get YouTube video metadata
+      description: Fetches metadata for a YouTube video including title, thumbnail, duration, and available formats
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+          description: YouTube video URL
+      responses:
+        "200":
+          description: Video information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoInfo"
+        "400":
+          description: Invalid URL or bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /youtube/download-url:
+    get:
+      operationId: getDownloadUrl
+      tags: [youtube]
+      summary: Get direct download URL for a video
+      description: Returns a direct download URL for the specified video format
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+          description: YouTube video URL
+        - name: formatId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Format ID for the selected resolution
+        - name: quality
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Quality label (e.g. 720p, 1080p)
+      responses:
+        "200":
+          description: Download URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DownloadUrlResponse"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +110,79 @@ components:
           type: string
       required:
         - status
-
+    VideoInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        thumbnail:
+          type: string
+        channelName:
+          type: string
+        duration:
+          type: number
+        durationFormatted:
+          type: string
+        viewCount:
+          type: number
+        formats:
+          type: array
+          items:
+            $ref: "#/components/schemas/VideoFormat"
+      required:
+        - id
+        - title
+        - thumbnail
+        - channelName
+        - duration
+        - durationFormatted
+        - formats
+    VideoFormat:
+      type: object
+      properties:
+        formatId:
+          type: string
+        quality:
+          type: string
+        resolution:
+          type: string
+        filesize:
+          type: number
+        ext:
+          type: string
+        hasVideo:
+          type: boolean
+        hasAudio:
+          type: boolean
+      required:
+        - formatId
+        - quality
+        - resolution
+        - ext
+        - hasVideo
+        - hasAudio
+    DownloadUrlResponse:
+      type: object
+      properties:
+        downloadUrl:
+          type: string
+        filename:
+          type: string
+        quality:
+          type: string
+      required:
+        - downloadUrl
+        - filename
+        - quality
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
