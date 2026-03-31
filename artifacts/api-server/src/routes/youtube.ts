@@ -56,12 +56,18 @@ router.get("/youtube/info", async (req, res) => {
 
     const info = JSON.parse(stdout);
 
-    // Collect unique heights from video-capable formats
-    const availableHeights = new Set<number>();
-    for (const fmt of (info.formats || []) as Array<{
+    type RawFormat = {
       height?: number;
       vcodec?: string;
-    }>) {
+      acodec?: string;
+      filesize?: number;
+      filesize_approx?: number;
+    };
+    const allRawFormats = (info.formats || []) as RawFormat[];
+
+    // Collect unique heights from video-capable formats
+    const availableHeights = new Set<number>();
+    for (const fmt of allRawFormats) {
       if (fmt.height && fmt.vcodec && fmt.vcodec !== "none") {
         availableHeights.add(fmt.height);
       }
@@ -69,17 +75,32 @@ router.get("/youtube/info", async (req, res) => {
 
     const maxHeight = availableHeights.size > 0 ? Math.max(...availableHeights) : 720;
 
+    // Best audio-only format size (added to video size for total estimate)
+    const bestAudioSize = allRawFormats
+      .filter((f) => f.acodec && f.acodec !== "none" && (!f.vcodec || f.vcodec === "none"))
+      .reduce((max, f) => Math.max(max, f.filesize ?? f.filesize_approx ?? 0), 0);
+
     // Build quality presets up to the video's max height
     const formats = QUALITY_HEIGHTS
       .filter((h) => h <= maxHeight)
-      .map((h) => ({
-        formatId: `height_${h}`,
-        quality: QUALITY_LABELS[h] || `${h}p`,
-        resolution: `${h}p`,
-        ext: "mp4",
-        hasVideo: true,
-        hasAudio: true,
-      }));
+      .map((h) => {
+        // Find the largest video format at this exact height
+        const videoSize = allRawFormats
+          .filter((f) => f.height === h && f.vcodec && f.vcodec !== "none")
+          .reduce((max, f) => Math.max(max, f.filesize ?? f.filesize_approx ?? 0), 0);
+
+        const filesize = videoSize > 0 ? videoSize + bestAudioSize : undefined;
+
+        return {
+          formatId: `height_${h}`,
+          quality: QUALITY_LABELS[h] || `${h}p`,
+          resolution: `${h}p`,
+          ext: "mp4",
+          hasVideo: true,
+          hasAudio: true,
+          ...(filesize ? { filesize } : {}),
+        };
+      });
 
     // Fallback: always show at least 720p if no formats detected
     if (formats.length === 0) {

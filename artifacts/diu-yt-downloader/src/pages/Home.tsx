@@ -86,6 +86,18 @@ export default function Home() {
     }
   }, [isInfoError, toast]);
 
+  // Auto-select best available resolution when video info loads
+  useEffect(() => {
+    if (videoInfo?.formats?.length) {
+      const preferred =
+        videoInfo.formats.find(f => f.formatId === "height_1080") ||
+        videoInfo.formats[0];
+      setSelectedFormatId(preferred.formatId);
+    } else {
+      setSelectedFormatId(null);
+    }
+  }, [videoInfo]);
+
   // Selected Format for download
   const selectedFormat = useMemo(() => {
     if (!videoInfo || !selectedFormatId) return null;
@@ -340,7 +352,25 @@ export default function Home() {
                             <span className={`text-base font-bold leading-tight ${isSelected ? 'text-primary' : 'text-foreground'}`}>
                               {format.quality}
                             </span>
-                            <span className="text-xs font-mono uppercase text-muted-foreground">{format.ext}</span>
+                            <div className="flex items-center justify-between w-full px-0.5 text-xs font-mono">
+                              <motion.span layout="position" className="uppercase text-muted-foreground">
+                                {format.ext}
+                              </motion.span>
+                              <AnimatePresence>
+                                {format.filesize ? (
+                                  <motion.span
+                                    key={`sz-${format.formatId}`}
+                                    initial={{ opacity: 0, x: 6 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 6 }}
+                                    transition={{ duration: 0.25, delay: 0.05 }}
+                                    className="text-muted-foreground/70"
+                                  >
+                                    {formatFileSize(format.filesize)}
+                                  </motion.span>
+                                ) : null}
+                              </AnimatePresence>
+                            </div>
                           </button>
                         );
                       })}
@@ -355,7 +385,7 @@ export default function Home() {
                         className={`
                           w-full md:w-auto min-w-[200px] h-10 rounded-lg text-sm font-semibold transition-all duration-300
                           ${selectedFormatId 
-                            ? 'bg-primary hover:bg-primary/90 text-white animate-[pulse-glow_2s_infinite]' 
+                            ? 'bg-primary hover:bg-primary/90 text-white' 
                             : 'bg-foreground/5 text-foreground/40 cursor-not-allowed'
                           }
                         `}
