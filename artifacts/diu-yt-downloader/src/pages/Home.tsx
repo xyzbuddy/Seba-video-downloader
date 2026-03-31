@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Youtube, Info, AlertCircle, Play, Eye } from "lucide-react";
+import { Download, Youtube, Info, AlertCircle, Play, Eye, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "@/contexts/ThemeContext";
 
 // Import generated API hooks and types
 import {
@@ -21,6 +22,7 @@ export default function Home() {
   const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
   
   const { toast } = useToast();
+  const { theme, toggleTheme } = useTheme();
 
   // Basic client-side validation
   const isValidYoutubeUrl = (url: string) => {
@@ -134,7 +136,21 @@ export default function Home() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-between p-4 md:p-8 lg:p-12">
-      
+
+      {/* Theme Toggle Button */}
+      <button
+        data-testid="button-theme-toggle"
+        onClick={toggleTheme}
+        aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        className="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-foreground/10 hover:bg-foreground/20 border border-border backdrop-blur-sm transition-all duration-200 text-foreground shadow-md"
+      >
+        {theme === "dark" ? (
+          <Sun className="w-5 h-5" />
+        ) : (
+          <Moon className="w-5 h-5" />
+        )}
+      </button>
+
       {/* Main Content Wrapper */}
       <main className="w-full max-w-4xl flex-1 flex flex-col items-center justify-center gap-12 mt-10 md:mt-20 mb-20">
         
@@ -154,7 +170,7 @@ export default function Home() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-4xl md:text-6xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-white to-white/60 drop-shadow-sm"
+            className="text-4xl md:text-6xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/60 drop-shadow-sm"
           >
             Powerful YouTube <br className="hidden md:block"/> Video Downloader
           </motion.h1>
@@ -178,7 +194,7 @@ export default function Home() {
         >
           <form 
             onSubmit={handleFetch}
-            className="relative flex items-center w-full bg-input/50 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl overflow-hidden focus-within:ring-2 focus-within:ring-primary/50 transition-all duration-300"
+            className="relative flex items-center w-full bg-input/50 backdrop-blur-md rounded-2xl border border-border shadow-2xl overflow-hidden focus-within:ring-2 focus-within:ring-primary/50 transition-all duration-300"
           >
             <div className="pl-6 pr-2 text-muted-foreground flex-shrink-0">
               <Youtube className="w-6 h-6 opacity-60" />
@@ -187,7 +203,7 @@ export default function Home() {
               type="url"
               data-testid="input-youtube-url"
               placeholder="Paste YouTube link here..."
-              className="flex-1 h-16 md:h-20 text-lg md:text-xl bg-transparent border-0 focus-visible:ring-0 px-2 rounded-none placeholder:text-muted-foreground/60 text-white"
+              className="flex-1 h-16 md:h-20 text-lg md:text-xl bg-transparent border-0 focus-visible:ring-0 px-2 rounded-none placeholder:text-muted-foreground/60 text-foreground"
               value={inputUrl}
               onChange={(e) => setInputUrl(e.target.value)}
               disabled={isFetchingInfo}
@@ -214,17 +230,17 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-3xl glass-card rounded-3xl border border-white/5 p-6 space-y-6"
+              className="w-full max-w-3xl glass-card rounded-3xl border border-border p-6 space-y-6"
             >
               <div className="flex flex-col md:flex-row gap-6">
-                <Skeleton className="w-full md:w-[320px] aspect-video rounded-2xl bg-white/5" />
+                <Skeleton className="w-full md:w-[320px] aspect-video rounded-2xl bg-foreground/5" />
                 <div className="flex-1 space-y-4 py-2">
-                  <Skeleton className="h-8 w-3/4 bg-white/5" />
-                  <Skeleton className="h-6 w-1/2 bg-white/5" />
-                  <Skeleton className="h-4 w-1/3 bg-white/5 mt-4" />
+                  <Skeleton className="h-8 w-3/4 bg-foreground/5" />
+                  <Skeleton className="h-6 w-1/2 bg-foreground/5" />
+                  <Skeleton className="h-4 w-1/3 bg-foreground/5 mt-4" />
                 </div>
               </div>
-              <Skeleton className="h-24 w-full bg-white/5 rounded-2xl mt-8" />
+              <Skeleton className="h-24 w-full bg-foreground/5 rounded-2xl mt-8" />
             </motion.div>
           )}
 
@@ -236,9 +252,9 @@ export default function Home() {
               transition={{ duration: 0.6, type: "spring", bounce: 0.4 }}
               className="w-full max-w-4xl"
             >
-              <Card className="bg-card/40 backdrop-blur-xl border-white/10 shadow-2xl overflow-hidden rounded-3xl">
+              <Card className="bg-card/40 backdrop-blur-xl border-border shadow-2xl overflow-hidden rounded-3xl">
                 <CardContent className="p-0">
-                  <div className="flex flex-col md:flex-row border-b border-white/10">
+                  <div className="flex flex-col md:flex-row border-b border-border">
                     {/* Thumbnail Section */}
                     <div className="w-full md:w-[40%] lg:w-[45%] relative group">
                       <div className="aspect-video relative overflow-hidden bg-black/50">
@@ -249,7 +265,7 @@ export default function Home() {
                           data-testid="img-video-thumbnail"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                        <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1.5 border border-white/10">
+                        <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-sm text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1.5 border border-white/20">
                           <Play className="w-3 h-3 text-primary" />
                           {videoInfo.durationFormatted}
                         </div>
@@ -262,7 +278,7 @@ export default function Home() {
                         Ready to download
                       </Badge>
                       <h2 
-                        className="text-2xl font-bold leading-tight mb-2 line-clamp-2 text-white"
+                        className="text-2xl font-bold leading-tight mb-2 line-clamp-2 text-foreground"
                         data-testid="text-video-title"
                         title={videoInfo.title}
                       >
@@ -271,10 +287,10 @@ export default function Home() {
                       
                       <div className="flex flex-wrap items-center gap-4 text-muted-foreground mt-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                            <Youtube className="w-4 h-4 text-white" />
+                          <div className="w-8 h-8 rounded-full bg-foreground/10 flex items-center justify-center">
+                            <Youtube className="w-4 h-4 text-foreground" />
                           </div>
-                          <span className="font-medium text-white/90" data-testid="text-channel-name">
+                          <span className="font-medium text-foreground/90" data-testid="text-channel-name">
                             {videoInfo.channelName}
                           </span>
                         </div>
@@ -289,7 +305,7 @@ export default function Home() {
                   </div>
 
                   {/* Resolution Selection Area */}
-                  <div className="p-6 md:p-8 bg-black/20">
+                  <div className="p-6 md:p-8 bg-foreground/5">
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-lg font-semibold flex items-center gap-2">
                         <Download className="w-5 h-5 text-primary" />
@@ -309,7 +325,7 @@ export default function Home() {
                               relative flex flex-col items-center justify-center p-4 rounded-2xl border transition-all duration-300
                               ${isSelected 
                                 ? 'bg-primary/10 border-primary shadow-[0_0_15px_-3px_hsl(var(--primary)/0.3)]' 
-                                : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                                : 'bg-foreground/5 border-border hover:bg-foreground/10 hover:border-foreground/20'
                               }
                             `}
                           >
@@ -321,14 +337,14 @@ export default function Home() {
                                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                               />
                             )}
-                            <span className={`text-xl font-bold mb-1 ${isSelected ? 'text-primary' : 'text-white'}`}>
+                            <span className={`text-xl font-bold mb-1 ${isSelected ? 'text-primary' : 'text-foreground'}`}>
                               {format.quality}
                             </span>
                             <div className="flex items-center gap-2 text-xs font-mono">
                               <span className="uppercase text-muted-foreground">{format.ext}</span>
                               {format.filesize && (
                                 <>
-                                  <span className="text-white/20">•</span>
+                                  <span className="text-foreground/20">•</span>
                                   <span className="text-muted-foreground">{formatFileSize(format.filesize)}</span>
                                 </>
                               )}
@@ -349,7 +365,7 @@ export default function Home() {
                           w-full md:w-auto min-w-[280px] h-16 rounded-xl text-lg font-bold transition-all duration-300
                           ${selectedFormatId 
                             ? 'bg-primary hover:bg-primary/90 text-white animate-[pulse-glow_2s_infinite]' 
-                            : 'bg-white/5 text-white/40 cursor-not-allowed'
+                            : 'bg-foreground/5 text-foreground/40 cursor-not-allowed'
                           }
                         `}
                       >
@@ -384,7 +400,7 @@ export default function Home() {
               <AlertCircle className="w-12 h-12 text-destructive" />
               <div>
                 <h3 className="text-xl font-semibold mb-2">Failed to fetch video</h3>
-                <p className="text-white/70">
+                <p className="text-foreground/70">
                   {infoError?.message || "The video might be unavailable, private, or region-locked. Please check the URL and try again."}
                 </p>
               </div>
@@ -395,7 +411,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full py-6 flex flex-col items-center justify-center gap-2 border-t border-white/5 text-center mt-auto">
+      <footer className="w-full py-6 flex flex-col items-center justify-center gap-2 border-t border-border text-center mt-auto">
         <div className="flex items-center gap-2 opacity-60">
           <Youtube className="w-4 h-4" />
           <span className="font-semibold tracking-wide">DIU YT Downloader</span>
