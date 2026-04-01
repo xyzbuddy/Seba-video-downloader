@@ -2,11 +2,17 @@ import { Router, type IRouter } from "express";
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import path from "path";
+import fs from "fs";
+import os from "os";
+import crypto from "crypto";
 
 const execFileAsync = promisify(execFile);
 
 // Use the bundled yt-dlp binary (artifacts/api-server/yt-dlp)
 const YT_DLP = path.join(process.cwd(), "yt-dlp");
+
+// ffmpeg ships with the Replit runtime
+const FFMPEG_DIR = "/nix/store/q5qbngdpv0n9zgh42d3ssprj31cf779j-replit-runtime-path/bin";
 
 const router: IRouter = Router();
 
@@ -195,8 +201,10 @@ router.get("/youtube/download-url", async (req, res) => {
   }
 });
 
-// Streaming download endpoint — pipes yt-dlp output directly to the browser
-// with Content-Disposition: attachment to force a real file download
+// Download endpoint — merges best video+audio via ffmpeg into a temp file,
+// then streams it to the browser as an attachment.
+// This is required because YouTube serves high-quality video (1080p+) as
+// separate DASH streams; piping a single stream would only give ~360p.
 router.get("/youtube/download", (req, res) => {
   const { url, formatId, quality, title } = req.query as {
     url?: string;
@@ -216,8 +224,9 @@ router.get("/youtube/download", (req, res) => {
   }
 
   const height = formatId.replace("height_", "");
-  // Use combined streams only so yt-dlp can pipe a single file to stdout
-  const formatSelector = `best[height<=${height}][ext=mp4]/best[height<=${height}]`;
+
+  // Prefer mp4/m4a DASH pair; fall back to any bestvideo+bestaudio
+  const formatSelector = `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]`;
 
   // Build a safe filename from the title
   const safeName = (title || "video")
@@ -227,35 +236,71 @@ router.get("/youtube/download", (req, res) => {
     .slice(0, 80);
   const filename = `${safeName}_${quality}.mp4`;
 
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.setHeader("Content-Type", "video/mp4");
+  // Unique temp file — yt-dlp will merge video+audio here via ffmpeg
+  const tmpId = crypto.randomBytes(8).toString("hex");
+  const tmpFile = path.join(os.tmpdir(), `yt-${tmpId}.mp4`);
+
+  let clientGone = false;
+
+  req.on("close", () => {
+    clientGone = true;
+    if (ytProcess && !ytProcess.killed) ytProcess.kill();
+    fs.unlink(tmpFile, () => {});
+  });
 
   const ytProcess = spawn(YT_DLP, [
     "-f", formatSelector,
-    "-o", "-",
+    "--merge-output-format", "mp4",
+    "--ffmpeg-location", FFMPEG_DIR,
+    "-o", tmpFile,
     "--no-playlist",
     "--no-warnings",
     url,
   ]);
 
-  ytProcess.stdout.pipe(res);
-
   ytProcess.stderr.on("data", (chunk: Buffer) => {
-    req.log.warn({ stderr: chunk.toString() }, "yt-dlp download stderr");
+    req.log.info({ stderr: chunk.toString() }, "yt-dlp download progress");
   });
 
   ytProcess.on("error", (err: Error) => {
     req.log.error({ err }, "yt-dlp spawn error");
-    if (!res.headersSent) {
-      res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Download process failed" });
-    } else {
-      res.destroy();
-    }
+    if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Failed to start download" });
   });
 
-  // If the client disconnects, kill the yt-dlp process to free resources
-  req.on("close", () => {
-    if (!ytProcess.killed) ytProcess.kill();
+  ytProcess.on("close", (code) => {
+    if (clientGone) return;
+
+    if (code !== 0) {
+      req.log.error({ code }, "yt-dlp exited with non-zero code");
+      if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Download process failed" });
+      fs.unlink(tmpFile, () => {});
+      return;
+    }
+
+    fs.stat(tmpFile, (statErr, stat) => {
+      if (statErr || !stat.isFile()) {
+        req.log.error({ statErr }, "Temp file missing after yt-dlp");
+        if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Output file not found" });
+        return;
+      }
+
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", "video/mp4");
+      res.setHeader("Content-Length", stat.size);
+
+      const fileStream = fs.createReadStream(tmpFile);
+      fileStream.pipe(res);
+
+      fileStream.on("end", () => {
+        fs.unlink(tmpFile, () => {});
+      });
+
+      fileStream.on("error", (streamErr) => {
+        req.log.error({ err: streamErr }, "File stream error");
+        fs.unlink(tmpFile, () => {});
+        if (!res.headersSent) res.status(500).json({ error: "STREAM_FAILED" });
+      });
+    });
   });
 });
 
