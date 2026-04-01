@@ -2,9 +2,6 @@ import { Router, type IRouter } from "express";
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import path from "path";
-import fs from "fs";
-import os from "os";
-import crypto from "crypto";
 
 const execFileAsync = promisify(execFile);
 
@@ -201,11 +198,13 @@ router.get("/youtube/download-url", async (req, res) => {
   }
 });
 
-// Download endpoint — merges best video+audio via ffmpeg into a temp file,
-// then streams it to the browser as an attachment.
-// This is required because YouTube serves high-quality video (1080p+) as
-// separate DASH streams; piping a single stream would only give ~360p.
-router.get("/youtube/download", (req, res) => {
+// Download endpoint — two-phase real-time streaming:
+// Phase 1: yt-dlp --get-url resolves the direct CDN URLs for video+audio (fast, ~3s)
+// Phase 2: ffmpeg fetches both streams simultaneously and mixes them into a
+//           fragmented MP4 piped directly to the HTTP response.
+// This starts delivering data to the browser immediately — no proxy timeout,
+// no temp file needed, and every quality tier (4K, 1440p, 1080p…) works correctly.
+router.get("/youtube/download", async (req, res) => {
   const { url, formatId, quality, title } = req.query as {
     url?: string;
     formatId?: string;
@@ -225,10 +224,10 @@ router.get("/youtube/download", (req, res) => {
 
   const height = formatId.replace("height_", "");
 
-  // Prefer mp4/m4a DASH pair; fall back to any bestvideo+bestaudio
+  // Prefer mp4/m4a DASH pair so ffmpeg gets natively compatible streams
   const formatSelector = `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]`;
 
-  // Build a safe filename from the title
+  // Build a safe filename
   const safeName = (title || "video")
     .replace(/[^\w\s-]/g, "")
     .trim()
@@ -236,71 +235,69 @@ router.get("/youtube/download", (req, res) => {
     .slice(0, 80);
   const filename = `${safeName}_${quality}.mp4`;
 
-  // Unique temp file — yt-dlp will merge video+audio here via ffmpeg
-  const tmpId = crypto.randomBytes(8).toString("hex");
-  const tmpFile = path.join(os.tmpdir(), `yt-${tmpId}.mp4`);
+  // --- Phase 1: resolve direct CDN stream URLs ---
+  let rawUrls: string[];
+  try {
+    const { stdout } = await execFileAsync(
+      YT_DLP,
+      ["-f", formatSelector, "--get-url", "--no-playlist", "--no-warnings", url],
+      { timeout: 30000 }
+    );
+    rawUrls = stdout.trim().split("\n").filter(Boolean);
+  } catch (err) {
+    req.log.error({ err }, "yt-dlp --get-url failed");
+    if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Could not resolve video stream URLs" });
+    return;
+  }
+
+  if (!rawUrls.length) {
+    res.status(500).json({ error: "NO_STREAM_URL", message: "No stream URL returned" });
+    return;
+  }
+
+  // --- Phase 2: stream via ffmpeg in real-time ---
+  // Build ffmpeg args: one -i per URL (video, then audio if present)
+  const ffmpegArgs: string[] = [];
+  for (const u of rawUrls) {
+    ffmpegArgs.push("-i", u);
+  }
+
+  // Fragmented MP4 via pipe — no seekable container needed for streaming
+  ffmpegArgs.push(
+    "-c", "copy",
+    "-f", "mp4",
+    "-movflags", "frag_keyframe+empty_moov+faststart",
+    "pipe:1"
+  );
+
+  const ffmpegBin = path.join(FFMPEG_DIR, "ffmpeg");
+  const ffmpegProcess = spawn(ffmpegBin, ffmpegArgs);
 
   let clientGone = false;
-
   req.on("close", () => {
     clientGone = true;
-    if (ytProcess && !ytProcess.killed) ytProcess.kill();
-    fs.unlink(tmpFile, () => {});
+    if (!ffmpegProcess.killed) ffmpegProcess.kill();
   });
 
-  const ytProcess = spawn(YT_DLP, [
-    "-f", formatSelector,
-    "--merge-output-format", "mp4",
-    "--ffmpeg-location", FFMPEG_DIR,
-    "-o", tmpFile,
-    "--no-playlist",
-    "--no-warnings",
-    url,
-  ]);
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Type", "video/mp4");
 
-  ytProcess.stderr.on("data", (chunk: Buffer) => {
-    req.log.info({ stderr: chunk.toString() }, "yt-dlp download progress");
+  ffmpegProcess.stdout.pipe(res);
+
+  ffmpegProcess.stderr.on("data", (chunk: Buffer) => {
+    req.log.info({ stderr: chunk.toString() }, "ffmpeg progress");
   });
 
-  ytProcess.on("error", (err: Error) => {
-    req.log.error({ err }, "yt-dlp spawn error");
-    if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Failed to start download" });
+  ffmpegProcess.on("error", (err: Error) => {
+    req.log.error({ err }, "ffmpeg spawn error");
+    if (!res.headersSent) res.status(500).json({ error: "STREAM_FAILED", message: "Streaming process failed" });
   });
 
-  ytProcess.on("close", (code) => {
+  ffmpegProcess.on("close", (code) => {
     if (clientGone) return;
-
     if (code !== 0) {
-      req.log.error({ code }, "yt-dlp exited with non-zero code");
-      if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Download process failed" });
-      fs.unlink(tmpFile, () => {});
-      return;
+      req.log.error({ code }, "ffmpeg exited with non-zero code");
     }
-
-    fs.stat(tmpFile, (statErr, stat) => {
-      if (statErr || !stat.isFile()) {
-        req.log.error({ statErr }, "Temp file missing after yt-dlp");
-        if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Output file not found" });
-        return;
-      }
-
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.setHeader("Content-Type", "video/mp4");
-      res.setHeader("Content-Length", stat.size);
-
-      const fileStream = fs.createReadStream(tmpFile);
-      fileStream.pipe(res);
-
-      fileStream.on("end", () => {
-        fs.unlink(tmpFile, () => {});
-      });
-
-      fileStream.on("error", (streamErr) => {
-        req.log.error({ err: streamErr }, "File stream error");
-        fs.unlink(tmpFile, () => {});
-        if (!res.headersSent) res.status(500).json({ error: "STREAM_FAILED" });
-      });
-    });
   });
 });
 
