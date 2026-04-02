@@ -1,5 +1,9 @@
 export type Platform = "youtube" | "facebook" | "instagram" | "tiktok";
 
+export function isValidYoutubeUrl(url: string) {
+  return /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)[a-zA-Z0-9_-]{11}/.test(url);
+}
+
 export function detectPlatform(url: string): Platform | null {
   if (/youtu(be\.com|\.be)/i.test(url)) return "youtube";
   if (/facebook\.com|fb\.watch|m\.facebook\.com/i.test(url)) return "facebook";

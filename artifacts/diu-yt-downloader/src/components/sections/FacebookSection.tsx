@@ -40,18 +40,16 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
 
   useEffect(() => {
     if (autoUrl && isValidFacebookUrl(autoUrl)) {
-      setInputUrl(autoUrl);
-      setSelectedFormatId(null);
-      setActiveUrl(autoUrl);
+      setInputUrl(autoUrl); setSelectedFormatId(null); setActiveUrl(autoUrl);
     }
   }, [autoUrl]);
 
+  // Auto-fetch on valid URL entry (debounced)
   useEffect(() => {
     const t = setTimeout(() => {
       const trimmed = inputUrl.trim();
       if (trimmed && isValidFacebookUrl(trimmed) && trimmed !== activeUrl) {
-        setSelectedFormatId(null);
-        setActiveUrl(trimmed);
+        setSelectedFormatId(null); setActiveUrl(trimmed);
       }
     }, 400);
     return () => clearTimeout(t);
@@ -65,15 +63,11 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
   });
 
   useEffect(() => {
-    if (info?.formats?.length && !selectedFormatId) {
-      setSelectedFormatId(info.formats[0].formatId);
-    }
+    if (info?.formats?.length && !selectedFormatId) setSelectedFormatId(info.formats[0].formatId);
   }, [info, selectedFormatId]);
 
   useEffect(() => {
-    if (isError) {
-      toast({ title: "Error fetching video", description: (error as Error)?.message || "Video might be private or unavailable.", variant: "destructive" });
-    }
+    if (isError) toast({ title: "Error fetching video", description: (error as Error)?.message || "Video might be private or unavailable.", variant: "destructive" });
   }, [isError, error, toast]);
 
   const handlePaste = async () => {
@@ -112,7 +106,7 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: FB_COLOR }}>
-            f
+            <svg viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Facebook Downloader</h2>
@@ -120,19 +114,24 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
           </div>
         </div>
 
-        <form
-          onSubmit={(e) => { e.preventDefault(); if (!inputUrl.trim()) return; if (!isValidFacebookUrl(inputUrl)) { toast({ title: "Invalid URL", description: "Please enter a valid Facebook video URL.", variant: "destructive" }); return; } setSelectedFormatId(null); setActiveUrl(inputUrl); }}
-          className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-colors p-2 mb-8"
-        >
+        {/* URL input — auto-triggers on valid URL, no Fetch button */}
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-colors p-2 mb-8">
           <svg className="w-5 h-5 ml-2 flex-shrink-0" viewBox="0 0 24 24" fill={FB_COLOR}><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
           <input
             type="url"
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const trimmed = inputUrl.trim();
+                if (trimmed && isValidFacebookUrl(trimmed)) { setSelectedFormatId(null); setActiveUrl(trimmed); }
+              }
+            }}
             disabled={isLoading}
             placeholder="Paste Facebook video link here..."
             className="flex-1 bg-transparent outline-none text-gray-900 dark:text-white placeholder:text-gray-400 text-base py-2 px-1"
           />
+          {isLoading && <Spinner className="w-4 h-4 flex-shrink-0" style={{ color: FB_COLOR }} />}
           <AnimatePresence>
             {inputUrl && (
               <motion.button type="button" key="clear" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }} transition={{ duration: 0.12 }} onClick={handleClear} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -143,10 +142,7 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
           <button type="button" onClick={handlePaste} disabled={isLoading} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap">
             Paste
           </button>
-          <button type="submit" disabled={isLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-semibold text-sm transition-all shadow-sm whitespace-nowrap" style={{ backgroundColor: FB_COLOR }}>
-            {isLoading ? <Spinner className="w-4 h-4" /> : "Fetch"}
-          </button>
-        </form>
+        </div>
 
         <AnimatePresence>
           {isLoading && (
@@ -171,9 +167,7 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
                   <div className="sm:w-64 flex-shrink-0 relative">
                     <img src={info.thumbnail} alt={info.title} className="w-full h-44 sm:h-full object-cover" />
                     {info.duration && (
-                      <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">
-                        {formatDuration(info.duration)}
-                      </span>
+                      <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">{formatDuration(info.duration)}</span>
                     )}
                   </div>
                 )}

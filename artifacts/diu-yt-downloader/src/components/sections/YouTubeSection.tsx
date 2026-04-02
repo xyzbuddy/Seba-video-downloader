@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, X, Play } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { useGetVideoInfo, getGetVideoInfoQueryKey } from "@workspace/api-client-react";
@@ -22,7 +22,6 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
   const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Apply auto URL from hero detect
   useEffect(() => {
     if (autoUrl && isValidYoutubeUrl(autoUrl)) {
       setInputUrl(autoUrl);
@@ -31,7 +30,7 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
     }
   }, [autoUrl]);
 
-  // Auto-fetch on valid URL entry
+  // Auto-fetch on valid URL entry (debounced)
   useEffect(() => {
     const t = setTimeout(() => {
       const trimmed = inputUrl.trim();
@@ -54,7 +53,6 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
     }
   }, [isError, toast]);
 
-  // Auto-select 1080p or best
   useEffect(() => {
     if (videoInfo?.formats?.length) {
       const preferred = videoInfo.formats.find(f => f.formatId === "height_1080") || videoInfo.formats[0];
@@ -73,9 +71,7 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
     try {
       const text = (await navigator.clipboard.readText()).trim();
       if (isValidYoutubeUrl(text)) {
-        setInputUrl(text);
-        setSelectedFormatId(null);
-        setActiveUrl(text);
+        setInputUrl(text); setSelectedFormatId(null); setActiveUrl(text);
       } else if (text) {
         toast({ title: "Not a YouTube link", description: "The clipboard doesn't contain a valid YouTube URL.", variant: "destructive" });
       } else {
@@ -86,11 +82,7 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
     }
   };
 
-  const handleClear = () => {
-    setInputUrl("");
-    setActiveUrl("");
-    setSelectedFormatId(null);
-  };
+  const handleClear = () => { setInputUrl(""); setActiveUrl(""); setSelectedFormatId(null); };
 
   const handleDownload = () => {
     if (!selectedFormat || !activeUrl) return;
@@ -110,7 +102,7 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
         {/* Section header */}
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold" style={{ backgroundColor: YT_COLOR }}>
-            ▶
+            <svg viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">YouTube Downloader</h2>
@@ -118,20 +110,24 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
           </div>
         </div>
 
-        {/* URL input */}
-        <form
-          onSubmit={(e) => { e.preventDefault(); if (!inputUrl.trim()) return; if (!isValidYoutubeUrl(inputUrl)) { toast({ title: "Invalid URL", description: "Please enter a valid YouTube link.", variant: "destructive" }); return; } setSelectedFormatId(null); setActiveUrl(inputUrl); }}
-          className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-red-400 dark:focus-within:border-red-500 transition-colors p-2 mb-8"
-        >
+        {/* URL input — no Fetch button, auto-triggers on valid URL */}
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-red-400 dark:focus-within:border-red-500 transition-colors p-2 mb-8">
           <svg className="w-5 h-5 ml-2 flex-shrink-0" viewBox="0 0 24 24" fill={YT_COLOR}><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
           <input
             type="url"
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const trimmed = inputUrl.trim();
+                if (trimmed && isValidYoutubeUrl(trimmed)) { setSelectedFormatId(null); setActiveUrl(trimmed); }
+              }
+            }}
             disabled={isLoading}
             placeholder="Paste YouTube video link here..."
             className="flex-1 bg-transparent outline-none text-gray-900 dark:text-white placeholder:text-gray-400 text-base py-2 px-1"
           />
+          {isLoading && <Spinner className="w-4 h-4 text-red-500 flex-shrink-0" />}
           <AnimatePresence>
             {inputUrl && (
               <motion.button type="button" key="clear" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }} transition={{ duration: 0.12 }} onClick={handleClear} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -142,10 +138,7 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
           <button type="button" onClick={handlePaste} disabled={isLoading} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap">
             Paste
           </button>
-          <button type="submit" disabled={isLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-semibold text-sm transition-all shadow-sm whitespace-nowrap" style={{ backgroundColor: YT_COLOR }}>
-            {isLoading ? <Spinner className="w-4 h-4" /> : <><Play className="w-4 h-4" /> Fetch</>}
-          </button>
-        </form>
+        </div>
 
         {/* Loading skeleton */}
         <AnimatePresence>
@@ -168,7 +161,6 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
               className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-md"
             >
               <div className="flex flex-col sm:flex-row">
-                {/* Thumbnail */}
                 <div className="sm:w-64 flex-shrink-0 relative">
                   <img src={videoInfo.thumbnail} alt={videoInfo.title} className="w-full h-44 sm:h-full object-cover" />
                   {videoInfo.duration && (
@@ -177,7 +169,6 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
                     </span>
                   )}
                 </div>
-                {/* Info */}
                 <div className="flex-1 p-5 flex flex-col gap-4">
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 mb-2">
@@ -186,20 +177,12 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
                     <h3 className="font-semibold text-gray-900 dark:text-white text-lg leading-snug line-clamp-2">{videoInfo.title}</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{videoInfo.channelName}</p>
                   </div>
-
-                  {/* Quality selector */}
                   <div>
                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Select Resolution</p>
                     <div className="flex flex-wrap gap-2">
                       {videoInfo.formats.map((fmt) => (
-                        <button
-                          key={fmt.formatId}
-                          onClick={() => setSelectedFormatId(fmt.formatId)}
-                          className={`flex flex-col items-center px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
-                            selectedFormatId === fmt.formatId
-                              ? "border-red-500 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400"
-                              : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500"
-                          }`}
+                        <button key={fmt.formatId} onClick={() => setSelectedFormatId(fmt.formatId)}
+                          className={`flex flex-col items-center px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${selectedFormatId === fmt.formatId ? "border-red-500 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400" : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500"}`}
                         >
                           <span>{fmt.quality}</span>
                           {fmt.filesize && <span className="text-xs font-normal opacity-70 mt-0.5">{formatFileSize(fmt.filesize)}</span>}
@@ -207,11 +190,7 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
                       ))}
                     </div>
                   </div>
-
-                  {/* Download button */}
-                  <button
-                    onClick={handleDownload}
-                    disabled={!selectedFormatId}
+                  <button onClick={handleDownload} disabled={!selectedFormatId}
                     className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl text-white font-semibold text-sm transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed self-start"
                     style={{ backgroundColor: YT_COLOR }}
                   >

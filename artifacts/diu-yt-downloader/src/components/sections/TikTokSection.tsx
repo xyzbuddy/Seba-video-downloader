@@ -7,6 +7,21 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatDuration, formatFileSize } from "@/lib/platformUtils";
 
 const TT_COLOR = "#EE1D52";
+const TT_CYAN = "#69C9D0";
+const TT_BLACK = "#010101";
+
+// Proper TikTok logo with official cyan + red dual-shadow effect
+const TT_PATH = "M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.27 8.27 0 004.83 1.54V6.78a4.85 4.85 0 01-1.06-.09z";
+
+function TikTokLogo({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="-2 -2 28 28" fill="none">
+      <path d={TT_PATH} fill={TT_CYAN} transform="translate(1,1)" />
+      <path d={TT_PATH} fill={TT_COLOR} transform="translate(-1,-1)" />
+      <path d={TT_PATH} fill="white" />
+    </svg>
+  );
+}
 
 function isValidTikTokUrl(url: string) {
   return /tiktok\.com/i.test(url);
@@ -40,18 +55,16 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
 
   useEffect(() => {
     if (autoUrl && isValidTikTokUrl(autoUrl)) {
-      setInputUrl(autoUrl);
-      setSelectedFormatId("no_watermark");
-      setActiveUrl(autoUrl);
+      setInputUrl(autoUrl); setSelectedFormatId("no_watermark"); setActiveUrl(autoUrl);
     }
   }, [autoUrl]);
 
+  // Auto-fetch on valid URL entry (debounced)
   useEffect(() => {
     const t = setTimeout(() => {
       const trimmed = inputUrl.trim();
       if (trimmed && isValidTikTokUrl(trimmed) && trimmed !== activeUrl) {
-        setSelectedFormatId("no_watermark");
-        setActiveUrl(trimmed);
+        setSelectedFormatId("no_watermark"); setActiveUrl(trimmed);
       }
     }, 400);
     return () => clearTimeout(t);
@@ -65,9 +78,7 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
   });
 
   useEffect(() => {
-    if (isError) {
-      toast({ title: "Error fetching TikTok", description: (error as Error)?.message || "This video might be private or unavailable.", variant: "destructive" });
-    }
+    if (isError) toast({ title: "Error fetching TikTok", description: (error as Error)?.message || "This video might be private or unavailable.", variant: "destructive" });
   }, [isError, error, toast]);
 
   const handlePaste = async () => {
@@ -107,8 +118,9 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
     <section id="tiktok-section" className="py-12 px-4 border-t-4" style={{ borderColor: TT_COLOR }}>
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-lg bg-black">
-            <span style={{ color: TT_COLOR }}>♪</span>
+          {/* Proper TikTok logo with dual-shadow on black background */}
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: TT_BLACK }}>
+            <TikTokLogo size={22} />
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">TikTok Downloader</h2>
@@ -116,19 +128,27 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
           </div>
         </div>
 
-        <form
-          onSubmit={(e) => { e.preventDefault(); if (!inputUrl.trim()) return; if (!isValidTikTokUrl(inputUrl)) { toast({ title: "Invalid URL", description: "Please enter a valid TikTok link.", variant: "destructive" }); return; } setSelectedFormatId("no_watermark"); setActiveUrl(inputUrl); }}
-          className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-red-400 dark:focus-within:border-red-500 transition-colors p-2 mb-8"
-        >
-          <svg className="w-5 h-5 ml-2 flex-shrink-0" viewBox="0 0 24 24"><path fill="#EE1D52" d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.27 8.27 0 004.83 1.54V6.78a4.85 4.85 0 01-1.06-.09z" /></svg>
+        {/* URL input — auto-triggers on valid URL, no Fetch button */}
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-[#EE1D52] dark:focus-within:border-[#EE1D52] transition-colors p-2 mb-8">
+          {/* TikTok icon in input — dual shadow on dark pill */}
+          <div className="w-6 h-6 ml-1 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: TT_BLACK }}>
+            <TikTokLogo size={14} />
+          </div>
           <input
             type="url"
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const trimmed = inputUrl.trim();
+                if (trimmed && isValidTikTokUrl(trimmed)) { setSelectedFormatId("no_watermark"); setActiveUrl(trimmed); }
+              }
+            }}
             disabled={isLoading}
             placeholder="Paste TikTok video link here..."
             className="flex-1 bg-transparent outline-none text-gray-900 dark:text-white placeholder:text-gray-400 text-base py-2 px-1"
           />
+          {isLoading && <Spinner className="w-4 h-4 flex-shrink-0" style={{ color: TT_COLOR }} />}
           <AnimatePresence>
             {inputUrl && (
               <motion.button type="button" key="clear" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }} transition={{ duration: 0.12 }} onClick={handleClear} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -139,10 +159,7 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
           <button type="button" onClick={handlePaste} disabled={isLoading} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap">
             Paste
           </button>
-          <button type="submit" disabled={isLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-semibold text-sm transition-all shadow-sm whitespace-nowrap bg-black">
-            {isLoading ? <Spinner className="w-4 h-4" /> : "Fetch"}
-          </button>
-        </form>
+        </div>
 
         <AnimatePresence>
           {isLoading && (
@@ -167,9 +184,7 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
                   <div className="sm:w-40 flex-shrink-0 relative">
                     <img src={info.thumbnail} alt={info.title} className="w-full h-48 sm:h-full object-cover" />
                     {info.duration && (
-                      <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">
-                        {formatDuration(info.duration)}
-                      </span>
+                      <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">{formatDuration(info.duration)}</span>
                     )}
                   </div>
                 )}
@@ -195,7 +210,8 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
                     </div>
                   </div>
                   <button onClick={handleDownload} disabled={!info}
-                    className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl text-white font-semibold text-sm transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed self-start bg-black"
+                    className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl text-white font-semibold text-sm transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed self-start"
+                    style={{ backgroundColor: TT_BLACK }}
                   >
                     <Download className="w-4 h-4" />
                     {selectedFormatId === "no_watermark" ? "Download Without Watermark ✅" : "Download With Watermark"}
