@@ -1,0 +1,168 @@
+এই নাও ভাই, updated prompt — শুধু name change করা হয়েছে:
+
+---
+
+## ✅ FINAL COMBINED PROMPT — "DIU Downloader" (Replit Ready)
+
+---
+
+### 🎯 Role & Persona:
+
+You are a **Senior UI/UX Designer** and **Professional Full-Stack Web Developer**. Your goal is to build a modern, clean, and fully functional **multi-platform video downloader web app** called **"DIU Downloader"** — inspired by the layout and style of **savefrom.net**.
+
+---
+
+### 🎨 Design & Theme:
+
+* **Style:** Inspired by savefrom.net — clean, minimal, light/white background with bold accent color buttons
+* **Header:** Fixed top navigation bar with logo on left and platform tabs on right:
+  `YouTube | Facebook | Instagram | TikTok`
+  Each tab is **clickable** and smoothly scrolls to its dedicated section on the home page
+* **Font:** Google Fonts — **Poppins or Inter**
+* **Fully responsive** — desktop, tablet, mobile
+* **Smooth hover effects** on buttons and nav items
+* **Accent color:** Consistent brand color throughout (e.g., green like savefrom.net)
+
+---
+
+### 🏠 Home Page Design:
+
+* Large centered **hero section** with:
+  * Bold heading: *"DIU Downloader — Download Videos Free & Fast"*
+  * Short subtitle: *"Paste any YouTube, Facebook, Instagram or TikTok link below"*
+  * A **wide URL input field** at the center with placeholder: *"Paste your video link here..."*
+  * A bold **"Download"** button on the **right side** of the input field
+* Below the input, show **platform icons** (YouTube, Facebook, Instagram, TikTok) as visual hints
+* **Auto-detect logic:** When a URL is pasted:
+  * Detect the platform automatically (YouTube / Facebook / Instagram / TikTok)
+  * Load the appropriate download flow **without page reload**
+  * Show a small badge: *"YouTube link detected ✓"* or similar
+
+---
+
+### 🔗 Header Navigation — Anchor Link Behavior:
+
+* Each header tab (`YouTube | Facebook | Instagram | TikTok`) must be linked using **anchor `href="#youtube-section"`** etc.
+* Each platform section on the home page must have a matching **`id`**:
+  * `id="youtube-section"`
+  * `id="facebook-section"`
+  * `id="instagram-section"`
+  * `id="tiktok-section"`
+* Clicking any header tab → **smooth scroll** to that section
+* Use `scroll-behavior: smooth` in CSS or `element.scrollIntoView({ behavior: 'smooth' })` in JS
+* If URL contains `#youtube-section` on load → **auto-scroll** to that section
+* **Do NOT create separate pages** for each platform — everything lives on one home page
+
+---
+
+### 📄 Per-Platform Sections (on Home Page):
+
+---
+
+#### 1. 🎬 YouTube Section `id="youtube-section"` ✅ (Already working — DO NOT break):
+* Input field (pre-filled if coming from home auto-detect)
+* After paste → show **video preview card:**
+  * Thumbnail, Title, Channel name, Duration
+* Click **Download** → resolution options:
+  * `480p | 720p | 1080p | 4K (if available)`
+* On resolution select → **download starts immediately as MP4**
+* **Use `@distube/ytdl-core` (latest) or `yt-dlp`** — NOT the old deprecated `ytdl-core`
+* Handle errors: private video, age-restricted, unavailable
+
+---
+
+#### 2. 📘 Facebook Section `id="facebook-section"`:
+* Input field for Facebook video/reel URL (public videos only)
+* After paste → show **video preview card:**
+  * Thumbnail, Title (if available), Duration
+* Click **Download** → quality options:
+  * `SD (Standard) | HD (High Quality)`
+* Download as **MP4**
+* Use **`axios + cheerio`** scraping or a reliable facebook-dl library
+* Handle errors: private video, login-required content
+
+---
+
+#### 3. 📸 Instagram Section `id="instagram-section"`:
+* Input field for Instagram Reel or public post URL
+* After paste → show **preview card:**
+  * Thumbnail, caption (if available)
+* Click **Download** → best available quality:
+  * `Best Quality (MP4)`
+* Use **`instagram-url-direct`** or latest working library
+* Handle errors: private account, unsupported content
+
+---
+
+#### 4. 🎵 TikTok Section `id="tiktok-section"`:
+* Input field for TikTok video URL
+* After paste → show **preview card:**
+  * Thumbnail, username, description
+* Click **Download** → options:
+  * `Without Watermark ✅ | With Watermark`
+* **Default: Always "Without Watermark"**
+* Use **TikWM API** (free & reliable) or **`@tobyg74/tiktok-api-dl`** (latest)
+* Download as **MP4**
+* Handle errors: deleted video, private account
+
+---
+
+### ⚙️ Technical Stack:
+
+**Frontend:**
+* React.js (Vite) or Pure HTML + CSS + JS — whichever is cleaner
+* Axios or Fetch API for backend calls
+* Loading spinner during fetch
+* Toast notifications for errors/success
+
+**Backend:**
+* Node.js + Express or Python FastAPI
+* API routes:
+  * `POST /api/detect` — detects platform from URL
+  * `POST /api/youtube` — YT metadata + download
+  * `POST /api/facebook` — FB video
+  * `POST /api/instagram` — IG video
+  * `POST /api/tiktok` — TikTok video (no watermark)
+* Stream file download directly to device
+* CORS configured properly
+* `.env` for API keys
+
+**Libraries (latest stable versions only):**
+
+| Platform | Library |
+|---|---|
+| YouTube | `@distube/ytdl-core` or `yt-dlp` |
+| Facebook | `axios + cheerio` scraping |
+| Instagram | `instagram-url-direct` or `igdl` |
+| TikTok | `TikWM API` or `@tobyg74/tiktok-api-dl` |
+
+---
+
+### 🚀 User Flow:
+
+```
+Home Page
+   ↓
+User pastes any link → Auto-detect platform → badge shows "YouTube detected ✓"
+   ↓
+Show preview card (thumbnail + title + duration)
+   ↓
+User clicks Download → Quality/Format options appear
+   ↓
+User selects → File downloads to device instantly
+```
+
+---
+
+### 📝 Extra Requirements:
+
+* All sections must feel **consistent** — same header, font, color theme
+* **YouTube section already works — do NOT break it**, only add the anchor link from header
+* **No unnecessary steps** — UX smooth and simple
+* All errors must show **user-friendly messages**
+* Code must be **well-commented** and **modular**
+* Deployment-ready for **Replit / Vercel / Render**
+
+---
+
+ভাই ready! Replit AI তে paste করো। 🙌
