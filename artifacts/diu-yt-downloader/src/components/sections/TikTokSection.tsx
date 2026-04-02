@@ -10,7 +10,6 @@ const TT_COLOR = "#EE1D52";
 const TT_CYAN = "#69C9D0";
 const TT_BLACK = "#010101";
 
-// Proper TikTok logo with official cyan + red dual-shadow effect
 const TT_PATH = "M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.27 8.27 0 004.83 1.54V6.78a4.85 4.85 0 01-1.06-.09z";
 
 function TikTokLogo({ size = 20 }: { size?: number }) {
@@ -43,6 +42,19 @@ async function fetchTikTokInfo(url: string) {
   }>;
 }
 
+const HOW_TO_STEPS = [
+  { icon: "🔗", text: 'Open TikTok video and tap "Share → Copy Link"' },
+  { icon: "📋", text: "Paste the URL into the input field above" },
+  { icon: "✅", text: 'Choose "Without Watermark" and download instantly' },
+];
+
+const FEATURE_CARDS = [
+  { icon: "🚫", title: "No Watermark", desc: "Download clean videos without TikTok branding" },
+  { icon: "⚡", title: "Instant Download", desc: "No waiting — start downloading immediately" },
+  { icon: "🎬", title: "Original Quality", desc: "Get the video in its original resolution" },
+  { icon: "🆓", title: "Free Forever", desc: "No fees, no subscriptions, no limits" },
+];
+
 interface TikTokSectionProps {
   autoUrl?: string;
 }
@@ -59,7 +71,6 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
     }
   }, [autoUrl]);
 
-  // Auto-fetch on valid URL entry (debounced)
   useEffect(() => {
     const t = setTimeout(() => {
       const trimmed = inputUrl.trim();
@@ -114,11 +125,12 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
     toast({ title: "Download started", description: `Downloading TikTok video ${noWatermark ? "without watermark" : "with watermark"}...` });
   };
 
+  const showInfo = !isLoading && !info;
+
   return (
     <section id="tiktok-section" className="py-12 px-4 border-t-4" style={{ borderColor: TT_COLOR }}>
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
-          {/* Proper TikTok logo with dual-shadow on black background */}
           <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: TT_BLACK }}>
             <TikTokLogo size={22} />
           </div>
@@ -128,9 +140,7 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
           </div>
         </div>
 
-        {/* URL input — auto-triggers on valid URL, no Fetch button */}
         <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-[#EE1D52] dark:focus-within:border-[#EE1D52] transition-colors p-2 mb-8">
-          {/* TikTok icon in input — dual shadow on dark pill */}
           <div className="w-6 h-6 ml-1 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: TT_BLACK }}>
             <TikTokLogo size={14} />
           </div>
@@ -217,6 +227,43 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
                     {selectedFormatId === "no_watermark" ? "Download Without Watermark ✅" : "Download With Watermark"}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Informative content — shown only when no result */}
+        <AnimatePresence>
+          {showInfo && (
+            <motion.div key="tt-info" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="space-y-6 mt-2">
+              <div className="bg-gray-50 dark:bg-[#1e2433] rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-5 text-base">How to Download TikTok Videos Without Watermark</h3>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {HOW_TO_STEPS.map((s, i) => (
+                    <div key={i} className="flex items-start gap-3 flex-1">
+                      <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center text-sm font-bold text-[#EE1D52] flex-shrink-0">{i + 1}</div>
+                      <div className="pt-1">
+                        <span className="text-lg mr-1">{s.icon}</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-300">{s.text}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {FEATURE_CARDS.map((c, i) => (
+                  <div key={i} className="bg-gray-50 dark:bg-[#1e2433] rounded-xl p-4 border border-gray-200 dark:border-gray-700 flex items-start gap-3">
+                    <span className="text-2xl flex-shrink-0">{c.icon}</span>
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{c.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl p-3">
+                <span className="text-base flex-shrink-0">⚠️</span>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">Only public TikTok videos are supported.</p>
               </div>
             </motion.div>
           )}

@@ -1,5 +1,8 @@
 # Workspace
 
+## Project: Seba Downloader
+Multi-platform video downloader supporting YouTube, Facebook, Instagram, and TikTok. Rebranded from "DIU Downloader" to "Seba Downloader". Green accent theme, Poppins font, framer-motion animations.
+
 ## Overview
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.

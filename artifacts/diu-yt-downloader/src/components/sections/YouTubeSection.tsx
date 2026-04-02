@@ -12,6 +12,19 @@ function isValidYoutubeUrl(url: string) {
   return /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)[a-zA-Z0-9_-]{11}/.test(url);
 }
 
+const HOW_TO_STEPS = [
+  { icon: "🔗", text: "Copy the YouTube video or Shorts URL" },
+  { icon: "📋", text: "Paste it into the input field above" },
+  { icon: "✅", text: "Select your quality (480p / 720p / 1080p / 4K) and download" },
+];
+
+const FEATURE_CARDS = [
+  { icon: "🎥", title: "Up to 4K Quality", desc: "Download in the highest available resolution" },
+  { icon: "⚡", title: "Fast & Free", desc: "No signup, no limits, no cost" },
+  { icon: "📱", title: "Works on All Devices", desc: "Mobile, tablet, and desktop" },
+  { icon: "🔒", title: "Safe & Secure", desc: "No malware, no tracking" },
+];
+
 interface YouTubeSectionProps {
   autoUrl?: string;
 }
@@ -30,7 +43,6 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
     }
   }, [autoUrl]);
 
-  // Auto-fetch on valid URL entry (debounced)
   useEffect(() => {
     const t = setTimeout(() => {
       const trimmed = inputUrl.trim();
@@ -96,10 +108,11 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
     toast({ title: "Download started", description: `Preparing ${selectedFormat.quality} — this may take a moment while the video is processed.` });
   };
 
+  const showInfo = !isLoading && !videoInfo;
+
   return (
     <section id="youtube-section" className="py-12 px-4 border-t-4" style={{ borderColor: YT_COLOR }}>
       <div className="max-w-4xl mx-auto">
-        {/* Section header */}
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold" style={{ backgroundColor: YT_COLOR }}>
             <svg viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
@@ -110,7 +123,6 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
           </div>
         </div>
 
-        {/* URL input — no Fetch button, auto-triggers on valid URL */}
         <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-red-400 dark:focus-within:border-red-500 transition-colors p-2 mb-8">
           <svg className="w-5 h-5 ml-2 flex-shrink-0" viewBox="0 0 24 24" fill={YT_COLOR}><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
           <input
@@ -140,7 +152,6 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
           </button>
         </div>
 
-        {/* Loading skeleton */}
         <AnimatePresence>
           {isLoading && (
             <motion.div key="yt-loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 flex gap-6 shadow">
@@ -154,7 +165,6 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
           )}
         </AnimatePresence>
 
-        {/* Video preview card */}
         <AnimatePresence>
           {videoInfo && !isLoading && (
             <motion.div key="yt-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}
@@ -199,6 +209,42 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
                   </button>
                 </div>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Informative content — shown only when no result */}
+        <AnimatePresence>
+          {showInfo && (
+            <motion.div key="yt-info" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="space-y-6 mt-2">
+              {/* How-to steps */}
+              <div className="bg-gray-50 dark:bg-[#1e2433] rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-5 text-base">How to Download YouTube Videos</h3>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {HOW_TO_STEPS.map((s, i) => (
+                    <div key={i} className="flex items-start gap-3 flex-1">
+                      <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center text-sm font-bold text-red-600 dark:text-red-400 flex-shrink-0">{i + 1}</div>
+                      <div className="pt-1">
+                        <span className="text-lg mr-1">{s.icon}</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-300">{s.text}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Feature cards 2x2 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {FEATURE_CARDS.map((c, i) => (
+                  <div key={i} className="bg-gray-50 dark:bg-[#1e2433] rounded-xl p-4 border border-gray-200 dark:border-gray-700 flex items-start gap-3">
+                    <span className="text-2xl flex-shrink-0">{c.icon}</span>
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{c.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 text-center">Supported: YouTube videos, Shorts · Output: MP4</p>
             </motion.div>
           )}
         </AnimatePresence>

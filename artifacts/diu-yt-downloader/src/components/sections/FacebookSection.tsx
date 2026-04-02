@@ -28,6 +28,19 @@ async function fetchFbInfo(url: string) {
   }>;
 }
 
+const HOW_TO_STEPS = [
+  { icon: "🔗", text: "Copy the Facebook video or reel URL (must be public)" },
+  { icon: "📋", text: "Paste it into the input field above" },
+  { icon: "✅", text: "Choose HD or SD quality and download" },
+];
+
+const FEATURE_CARDS = [
+  { icon: "📹", title: "HD & SD Quality", desc: "Choose the resolution that suits your needs" },
+  { icon: "🎬", title: "Reels & Videos", desc: "Supports Facebook reels and regular videos" },
+  { icon: "⚡", title: "Instant Download", desc: "No waiting — downloads start immediately" },
+  { icon: "🆓", title: "100% Free", desc: "No registration, no fees, no limits" },
+];
+
 interface FacebookSectionProps {
   autoUrl?: string;
 }
@@ -44,7 +57,6 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
     }
   }, [autoUrl]);
 
-  // Auto-fetch on valid URL entry (debounced)
   useEffect(() => {
     const t = setTimeout(() => {
       const trimmed = inputUrl.trim();
@@ -101,6 +113,8 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
     toast({ title: "Download started", description: `Downloading ${selectedFormat.quality} video...` });
   };
 
+  const showInfo = !isLoading && !info;
+
   return (
     <section id="facebook-section" className="py-12 px-4 border-t-4" style={{ borderColor: FB_COLOR }}>
       <div className="max-w-4xl mx-auto">
@@ -114,7 +128,6 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
           </div>
         </div>
 
-        {/* URL input — auto-triggers on valid URL, no Fetch button */}
         <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-colors p-2 mb-8">
           <svg className="w-5 h-5 ml-2 flex-shrink-0" viewBox="0 0 24 24" fill={FB_COLOR}><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
           <input
@@ -199,6 +212,43 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
                     <Download className="w-4 h-4" /> Download {selectedFormat?.quality}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Informative content — shown only when no result */}
+        <AnimatePresence>
+          {showInfo && (
+            <motion.div key="fb-info" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="space-y-6 mt-2">
+              <div className="bg-gray-50 dark:bg-[#1e2433] rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-5 text-base">How to Download Facebook Videos</h3>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {HOW_TO_STEPS.map((s, i) => (
+                    <div key={i} className="flex items-start gap-3 flex-1">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">{i + 1}</div>
+                      <div className="pt-1">
+                        <span className="text-lg mr-1">{s.icon}</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-300">{s.text}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {FEATURE_CARDS.map((c, i) => (
+                  <div key={i} className="bg-gray-50 dark:bg-[#1e2433] rounded-xl p-4 border border-gray-200 dark:border-gray-700 flex items-start gap-3">
+                    <span className="text-2xl flex-shrink-0">{c.icon}</span>
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{c.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl p-3">
+                <span className="text-base flex-shrink-0">⚠️</span>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">Only public Facebook videos and reels can be downloaded.</p>
               </div>
             </motion.div>
           )}

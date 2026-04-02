@@ -25,20 +25,18 @@ export default function Header() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
-          {/* Logo → home */}
           <div
             className="flex items-center gap-2.5 cursor-pointer"
             onClick={() => navigate("/")}
           >
             <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center shadow-sm">
-              <span className="text-white font-bold text-sm">D</span>
+              <span className="text-white font-bold text-sm">S</span>
             </div>
             <span className="font-bold text-lg text-gray-900 dark:text-white">
-              DIU <span className="text-green-600">Downloader</span>
+              Seba <span className="text-green-600">Downloader</span>
             </span>
           </div>
 
-          {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
             {NAV_ITEMS.map((item) => {
               const isActive = location.startsWith(item.path);
@@ -47,11 +45,7 @@ export default function Header() {
                   key={item.path}
                   onClick={() => handleNav(item.path)}
                   className="relative px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150"
-                  style={
-                    isActive
-                      ? { backgroundColor: item.color, color: "#fff" }
-                      : {}
-                  }
+                  style={isActive ? { backgroundColor: item.color, color: "#fff" } : {}}
                 >
                   {!isActive && (
                     <span className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
@@ -64,7 +58,6 @@ export default function Header() {
             })}
           </nav>
 
-          {/* Controls */}
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
@@ -84,7 +77,6 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile dropdown */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
@@ -101,11 +93,7 @@ export default function Header() {
                     key={item.path}
                     onClick={() => handleNav(item.path)}
                     className="w-full text-left px-4 py-3 rounded-lg text-sm font-semibold transition-all"
-                    style={
-                      isActive
-                        ? { backgroundColor: item.color, color: "#fff" }
-                        : {}
-                    }
+                    style={isActive ? { backgroundColor: item.color, color: "#fff" } : {}}
                   >
                     {!isActive && (
                       <span className="text-gray-600 dark:text-gray-300">{item.label}</span>

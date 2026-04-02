@@ -28,6 +28,19 @@ async function fetchIgInfo(url: string) {
   }>;
 }
 
+const HOW_TO_STEPS = [
+  { icon: "🔗", text: "Open the reel or post and copy the link" },
+  { icon: "📋", text: "Paste the URL into the input field above" },
+  { icon: "✅", text: "Click download — best quality MP4 saved instantly" },
+];
+
+const FEATURE_CARDS = [
+  { icon: "🎞️", title: "Reels & Posts", desc: "Supports Instagram reels and video posts" },
+  { icon: "🏆", title: "Best Quality", desc: "Always downloads the highest available quality" },
+  { icon: "🚫", title: "No Watermark", desc: "Clean downloads without any overlay" },
+  { icon: "📲", title: "Mobile Friendly", desc: "Works perfectly on any device" },
+];
+
 interface InstagramSectionProps {
   autoUrl?: string;
 }
@@ -44,7 +57,6 @@ export default function InstagramSection({ autoUrl }: InstagramSectionProps) {
     }
   }, [autoUrl]);
 
-  // Auto-fetch on valid URL entry (debounced)
   useEffect(() => {
     const t = setTimeout(() => {
       const trimmed = inputUrl.trim();
@@ -101,6 +113,8 @@ export default function InstagramSection({ autoUrl }: InstagramSectionProps) {
     toast({ title: "Download started", description: "Downloading your Instagram video..." });
   };
 
+  const showInfo = !isLoading && !info;
+
   return (
     <section id="instagram-section" className="py-12 px-4 border-t-4" style={{ borderColor: IG_COLOR }}>
       <div className="max-w-4xl mx-auto">
@@ -114,7 +128,6 @@ export default function InstagramSection({ autoUrl }: InstagramSectionProps) {
           </div>
         </div>
 
-        {/* URL input — auto-triggers on valid URL, no Fetch button */}
         <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow focus-within:border-pink-400 dark:focus-within:border-pink-500 transition-colors p-2 mb-8">
           <svg className="w-5 h-5 ml-2 flex-shrink-0" viewBox="0 0 24 24" fill="url(#igGrad2)">
             <defs><linearGradient id="igGrad2" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#f09433" /><stop offset="50%" stopColor="#dc2743" /><stop offset="100%" stopColor="#bc1888" /></linearGradient></defs>
@@ -200,6 +213,43 @@ export default function InstagramSection({ autoUrl }: InstagramSectionProps) {
                     <Download className="w-4 h-4" /> Download Best Quality
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Informative content — shown only when no result */}
+        <AnimatePresence>
+          {showInfo && (
+            <motion.div key="ig-info" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="space-y-6 mt-2">
+              <div className="bg-gray-50 dark:bg-[#1e2433] rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-5 text-base">How to Download Instagram Videos</h3>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {HOW_TO_STEPS.map((s, i) => (
+                    <div key={i} className="flex items-start gap-3 flex-1">
+                      <div className="w-8 h-8 rounded-full bg-pink-100 dark:bg-pink-950/40 flex items-center justify-center text-sm font-bold text-pink-600 dark:text-pink-400 flex-shrink-0">{i + 1}</div>
+                      <div className="pt-1">
+                        <span className="text-lg mr-1">{s.icon}</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-300">{s.text}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {FEATURE_CARDS.map((c, i) => (
+                  <div key={i} className="bg-gray-50 dark:bg-[#1e2433] rounded-xl p-4 border border-gray-200 dark:border-gray-700 flex items-start gap-3">
+                    <span className="text-2xl flex-shrink-0">{c.icon}</span>
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{c.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{c.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl p-3">
+                <span className="text-base flex-shrink-0">⚠️</span>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">Only public Instagram accounts are supported.</p>
               </div>
             </motion.div>
           )}

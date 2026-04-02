@@ -1,0 +1,140 @@
+✅ COMBINED PROMPT — All Updates (Step by Step)
+
+Step 1: Add Informative Content Below Input on All 4 Platform Pages
+Problem: All 4 platform pages have large blank space below the input field when no URL is pasted.
+Fix: Add informative content sections below the input field on each platform page. Hide this content automatically when a fetch result appears.
+🎬 YouTube Page:
+
+How to Download YouTube Videos (3 steps):
+
+🔗 Copy the YouTube video or shorts URL
+📋 Paste it into the input field above
+✅ Select your quality (480p / 720p / 1080p / 4K) and download
+
+
+Feature cards (2x2 grid):
+
+🎥 Up to 4K Quality — Download in the highest available resolution
+⚡ Fast & Free — No signup, no limits, no cost
+📱 Works on All Devices — Mobile, tablet, and desktop
+🔒 Safe & Secure — No malware, no tracking
+
+
+Supported formats: YouTube videos, Shorts · Output: MP4
+
+📘 Facebook Page:
+
+How to Download Facebook Videos (3 steps):
+
+🔗 Copy the Facebook video or reel URL (must be public)
+📋 Paste it into the input field above
+✅ Choose HD or SD quality and download
+
+
+Feature cards:
+
+📹 HD & SD Quality
+🎬 Reels & Videos supported
+⚡ Instant Download
+🆓 100% Free
+
+
+Note ⚠️: Only public Facebook videos and reels can be downloaded.
+
+📸 Instagram Page:
+
+How to Download Instagram Videos (3 steps):
+
+🔗 Open the reel or post and copy the link
+📋 Paste the URL into the input field above
+✅ Click download — best quality MP4 saved instantly
+
+
+Feature cards:
+
+🎞️ Reels & Posts supported
+🏆 Best Quality always
+🚫 No Watermark
+📲 Mobile Friendly
+
+
+Note ⚠️: Only public Instagram accounts are supported.
+
+🎵 TikTok Page:
+
+How to Download TikTok Videos Without Watermark (3 steps):
+
+🔗 Open TikTok video and tap "Share → Copy Link"
+📋 Paste the URL into the input field above
+✅ Choose "Without Watermark" and download instantly
+
+
+Feature cards:
+
+🚫 No Watermark
+⚡ Instant Download
+🎬 Original Quality
+🆓 Free Forever
+
+
+Note ⚠️: Only public TikTok videos are supported.
+
+Design for all pages:
+
+Show content only when input is empty / no result showing — hide when fetch result appears
+3-step how-to row at top, then 2x2 feature card grid below
+Cards: dark background (#1e2433), rounded corners, icon + bold title + short description
+Notes: small warning box with muted yellow border
+Fully responsive — stack on mobile
+
+
+Step 2: Update Footer on All Pages
+Fix: Update the footer on all pages (home + all 4 platform pages):
+
+Top row (keep existing): 🟢 Seba Downloader · Download videos from YouTube, Facebook, Instagram & TikTok — free & fast.
+Middle row (new): Developed with ❤️ by xyzbuddy → links to https://github.com/xyzbuddy (opens in new tab) · add GitHub icon next to name
+Bottom row (new): © 2025 Seba Downloader · All rights reserved · For personal use only · Respect content creators' rights
+
+Design:
+
+Copyright text: small, muted gray
+GitHub link: hover underline/color change effect
+GitHub icon: small, white/gray, left of name
+Separator · between items
+Keep existing dark footer background
+Fully responsive
+
+
+Step 3: Add About Section on Home Page
+Location: Between the search/hero section and "Choose a Platform" section on home page.
+Content:
+
+About Seba Downloader
+In today's internet landscape, most video downloader tools come with limitations — either they are paid, filled with intrusive ads, or restrict users with download limits and low-quality outputs. Many platforms claim to be free, but in reality, essential features like HD or 4K downloads are locked behind subscriptions. This creates frustration, especially for students, content learners, and everyday users who just want simple, reliable access to videos offline.
+Seba Downloader was built to solve these exact problems. We believe downloading content should be straightforward, fast, and completely accessible to everyone. That's why our platform is designed to be 100% free for lifetime, with no hidden charges and no forced upgrades. Unlike many existing tools, we support high-quality downloads up to 4K, ensuring users don't have to compromise on clarity.
+We also prioritize a clean and distraction-free experience. At launch, Seba Downloader runs without ads, because we understand how disruptive excessive advertising can be — especially when you're trying to quickly download a lecture before class, save a tutorial for offline practice, or keep a favorite video for later viewing in low-network areas.
+From students downloading educational videos, freelancers saving client references, to casual users collecting entertainment content — Seba Downloader is built for real-life needs. And this is just the beginning. We are continuously working to improve performance, add new features, and expand platform support to make this tool even more powerful and user-friendly in the future.
+
+Design:
+
+Background: #151b27 or subtle card with border
+Title: bold, white, centered, green accent underline
+Body text: muted light gray, line-height 1.8, font size 16px
+Proper spacing between paragraphs
+Subtle left green border (#22c55e) on section
+Max width: 800px, centered
+Top and bottom padding: 60px
+Fully responsive
+Do NOT change hero section above or "Choose a Platform" section below
+
+
+Step 4: Full Project Name Change
+Find and replace throughout entire codebase:
+
+DIU Downloader → Seba Downloader
+DIU (brand name only) → Seba
+Logo letter D (green circle avatar) → S
+All <title> tags → Seba Downloader
+All meta/SEO descriptions → replace DIU with Seba
+Footer + Header brand name → Seba Downloader
+Any code variables like DIU_DOWNLOADER, diu-downloader → update accordingly

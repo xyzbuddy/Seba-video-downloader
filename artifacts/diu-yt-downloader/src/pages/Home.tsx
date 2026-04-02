@@ -70,7 +70,6 @@ export default function Home() {
     }
   };
 
-  // Debounce YouTube URL for info auto-fetch
   useEffect(() => {
     if (detected !== "youtube") { setYtFetchUrl(""); return; }
     const t = setTimeout(() => {
@@ -110,7 +109,7 @@ export default function Home() {
           <div className="max-w-3xl mx-auto text-center">
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
               <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
-                DIU Downloader —{" "}<span className="text-green-600">Download Videos</span>{" "}Free &amp; Fast
+                Seba Downloader —{" "}<span className="text-green-600">Download Videos</span>{" "}Free &amp; Fast
               </h1>
               <p className="text-gray-500 dark:text-gray-400 text-lg mb-10">
                 Paste any YouTube, Facebook, Instagram or TikTok link below
@@ -118,7 +117,6 @@ export default function Home() {
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-              {/* URL input */}
               <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow-lg focus-within:border-green-500 dark:focus-within:border-green-500 transition-colors p-2">
                 <Search className="w-5 h-5 text-gray-400 ml-2 flex-shrink-0" />
                 <input
@@ -141,17 +139,14 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Platform detection + quality options */}
               <AnimatePresence mode="wait">
                 {detected && platformInfo ? (
                   <motion.div key={detected} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-5 flex flex-col items-center gap-4">
-                    {/* Platform badge */}
                     <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium border ${platformInfo.badgeBg} ${platformInfo.badgeText}`}>
                       <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: platformInfo.color }} />
                       {platformInfo.label} link detected · {platformInfo.desc}
                     </span>
 
-                    {/* YouTube: auto-fetch quality options */}
                     {detected === "youtube" && (
                       ytLoading ? (
                         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-2">
@@ -176,7 +171,6 @@ export default function Home() {
                       ) : null
                     )}
 
-                    {/* Facebook / Instagram / TikTok: preset quality buttons */}
                     {detected !== "youtube" && (
                       <div className="flex flex-wrap justify-center gap-2">
                         {PRESET_OPTS[detected as Exclude<Platform, "youtube">].map((opt) => (
@@ -192,7 +186,6 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* Link to full platform page */}
                     <button onClick={() => navigate(`/${detected}?url=${encodeURIComponent(url.trim())}`)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors underline underline-offset-2">
                       Open {platformInfo.label} Downloader for more options →
                     </button>
@@ -207,15 +200,39 @@ export default function Home() {
           </div>
         </section>
 
+        {/* About Section */}
+        <section className="py-16 px-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+          <div className="max-w-3xl mx-auto">
+            <div className="border-l-4 border-green-500 pl-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1 text-center" style={{ textAlign: "left" }}>About Seba Downloader</h2>
+              <div className="w-16 h-1 bg-green-500 rounded mb-6 mt-1" />
+              <div className="space-y-4 text-gray-500 dark:text-gray-400 leading-relaxed text-base">
+                <p>
+                  In today's internet landscape, most video downloader tools come with limitations — either they are paid, filled with intrusive ads, or restrict users with download limits and low-quality outputs. Many platforms claim to be free, but in reality, essential features like HD or 4K downloads are locked behind subscriptions. This creates frustration, especially for students, content learners, and everyday users who just want simple, reliable access to videos offline.
+                </p>
+                <p>
+                  Seba Downloader was built to solve these exact problems. We believe downloading content should be straightforward, fast, and completely accessible to everyone. That's why our platform is designed to be 100% free for lifetime, with no hidden charges and no forced upgrades. Unlike many existing tools, we support high-quality downloads up to 4K, ensuring users don't have to compromise on clarity.
+                </p>
+                <p>
+                  We also prioritize a clean and distraction-free experience. At launch, Seba Downloader runs without ads, because we understand how disruptive excessive advertising can be — especially when you're trying to quickly download a lecture before class, save a tutorial for offline practice, or keep a favorite video for later viewing in low-network areas.
+                </p>
+                <p>
+                  From students downloading educational videos, freelancers saving client references, to casual users collecting entertainment content — Seba Downloader is built for real-life needs. And this is just the beginning. We are continuously working to improve performance, add new features, and expand platform support to make this tool even more powerful and user-friendly in the future.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Platform cards */}
-        <section className="py-12 px-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+        <section className="py-12 px-4 bg-gray-50 dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 text-center">Choose a Platform</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {PLATFORM_CARDS.map((card) => (
                 <motion.button key={card.id} whileHover={{ y: -2, scale: 1.01 }} whileTap={{ scale: 0.98 }}
                   onClick={() => navigate(`/${card.id}`)}
-                  className="flex items-center gap-4 p-5 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-left hover:shadow-md transition-all group"
+                  className="flex items-center gap-4 p-5 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-left hover:shadow-md transition-all group"
                 >
                   <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0" style={{ background: card.iconBg }}>
                     {card.iconText}
@@ -232,24 +249,22 @@ export default function Home() {
         </section>
 
         {/* Informative content section */}
-        <section className="py-14 px-4 bg-gray-50 dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+        <section className="py-14 px-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
           <div className="max-w-4xl mx-auto space-y-6">
 
-            {/* Card 1 — Hero info */}
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4 }}
-              className="bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 shadow-sm"
+              className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-8 border border-gray-200 dark:border-gray-700 shadow-sm"
             >
               <div className="text-4xl mb-4">🚀</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Download Videos Instantly with DIU Downloader</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Download Videos Instantly with Seba Downloader</h3>
               <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
-                DIU Downloader is your all-in-one solution for downloading high-quality videos from the world's most popular platforms. Designed with simplicity and performance in mind — paste your video link, choose your preferred quality, and download instantly. Completely free for lifetime use — no hidden charges, no subscriptions.
+                Seba Downloader is your all-in-one solution for downloading high-quality videos from the world's most popular platforms. Designed with simplicity and performance in mind — paste your video link, choose your preferred quality, and download instantly. Completely free for lifetime use — no hidden charges, no subscriptions.
               </p>
             </motion.div>
 
-            {/* Cards 2 + 3 — Two columns */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: 0.05 }}
-                className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm"
+                className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm"
               >
                 <div className="text-3xl mb-3">🎯</div>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">Download from Multiple Platforms in One Place</h3>
@@ -258,7 +273,7 @@ export default function Home() {
                 </p>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: 0.1 }}
-                className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm"
+                className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm"
               >
                 <div className="text-3xl mb-3">🎥</div>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">Download Videos in Stunning 4K Quality</h3>
@@ -268,7 +283,6 @@ export default function Home() {
               </motion.div>
             </div>
 
-            {/* Card 4 — Steps */}
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: 0.1 }}
               className="bg-green-600 rounded-2xl p-8 text-white shadow-sm"
             >
@@ -277,13 +291,13 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row gap-6">
                 {[
                   { step: "1", label: "Copy URL", desc: "Copy your video URL from any supported platform" },
-                  { step: "2", label: "Paste &amp; Detect", desc: "Paste it into the input field — platform is auto-detected" },
+                  { step: "2", label: "Paste & Detect", desc: "Paste it into the input field — platform is auto-detected" },
                   { step: "3", label: "Download", desc: "Choose your quality and download starts immediately" },
                 ].map((s) => (
                   <div key={s.step} className="flex items-start gap-3 flex-1">
                     <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold flex-shrink-0">{s.step}</div>
                     <div>
-                      <p className="font-semibold" dangerouslySetInnerHTML={{ __html: s.label }} />
+                      <p className="font-semibold">{s.label}</p>
                       <p className="text-sm text-green-100 mt-0.5">{s.desc}</p>
                     </div>
                   </div>
@@ -292,16 +306,15 @@ export default function Home() {
               <p className="text-sm text-green-100 mt-6 border-t border-white/20 pt-4">No login required. No software installation needed. Works on any device.</p>
             </motion.div>
 
-            {/* Card 5 — Future */}
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: 0.1 }}
-              className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm"
+              className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm"
             >
               <div className="text-3xl mb-3">🔮</div>
               <h3 className="font-bold text-gray-900 dark:text-white mb-2">Future-Ready Platform</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Coming soon to DIU Downloader:</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Coming soon to Seba Downloader:</p>
               <div className="flex flex-wrap gap-2">
                 {["More platform integrations", "Faster download speeds", "Audio-only (MP3) downloads", "Batch downloading options"].map((f) => (
-                  <span key={f} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                  <span key={f} className="px-3 py-1.5 rounded-full bg-white dark:bg-gray-700 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
                     {f}
                   </span>
                 ))}

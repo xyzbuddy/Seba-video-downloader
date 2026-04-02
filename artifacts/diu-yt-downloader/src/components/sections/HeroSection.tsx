@@ -75,7 +75,7 @@ export default function HeroSection({ onSubmit }: HeroSectionProps) {
           transition={{ duration: 0.5 }}
         >
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
-            DIU Downloader —{" "}
+            Seba Downloader —{" "}
             <span className="text-green-600">Download Videos</span>{" "}
             Free &amp; Fast
           </h1>
