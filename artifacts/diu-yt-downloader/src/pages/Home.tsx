@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, ArrowRight, Download } from "lucide-react";
@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { downloadFile } from "@/lib/downloadFile";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const PLATFORM_INFO: Record<Platform, { label: string; color: string; badgeBg: string; badgeText: string; desc: string }> = {
   youtube: { label: "YouTube", color: "#FF0000", badgeBg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900", badgeText: "text-red-600 dark:text-red-400", desc: "480p · 720p · 1080p · 4K" },
@@ -50,6 +51,23 @@ export default function Home() {
   const [mediaFetchUrl, setMediaFetchUrl] = useState("");
   const [ytSelectedFormat, setYtSelectedFormat] = useState<string | null>(null);
   const [mediaSelectedFormat, setMediaSelectedFormat] = useState<string | null>(null);
+  const [aboutExpanded, setAboutExpanded] = useState(false);
+  const [aboutCollapsedHeight, setAboutCollapsedHeight] = useState(120);
+  const aboutFirstParaRef = useRef<HTMLParagraphElement>(null);
+  const { theme } = useTheme();
+
+  const measureAbout = useCallback(() => {
+    if (aboutFirstParaRef.current) {
+      const paraHeight = aboutFirstParaRef.current.getBoundingClientRect().height;
+      setAboutCollapsedHeight(paraHeight + 8);
+    }
+  }, []);
+
+  useEffect(() => {
+    measureAbout();
+    window.addEventListener("resize", measureAbout);
+    return () => window.removeEventListener("resize", measureAbout);
+  }, [measureAbout]);
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -478,19 +496,52 @@ export default function Home() {
             <div className="border-l-4 border-green-500 pl-6">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1 text-center" style={{ textAlign: "left" }}>About Seba Downloader</h2>
               <div className="w-16 h-1 bg-green-500 rounded mb-6 mt-1" />
-              <div className="space-y-4 text-gray-500 dark:text-gray-400 leading-relaxed text-base">
-                <p>
-                  In today's internet landscape, most video downloader tools come with limitations — either they are paid, filled with intrusive ads, or restrict users with download limits and low-quality outputs. Many platforms claim to be free, but in reality, essential features like HD or 4K downloads are locked behind subscriptions. This creates frustration, especially for students, content learners, and everyday users who just want simple, reliable access to videos offline.
-                </p>
-                <p>
-                  Seba Downloader was built to solve these exact problems. We believe downloading content should be straightforward, fast, and completely accessible to everyone. That's why our platform is designed to be 100% free for lifetime, with no hidden charges and no forced upgrades. Unlike many existing tools, we support high-quality downloads up to 4K, ensuring users don't have to compromise on clarity.
-                </p>
-                <p>
-                  We also prioritize a clean and distraction-free experience. At launch, Seba Downloader runs without ads, because we understand how disruptive excessive advertising can be — especially when you're trying to quickly download a lecture before class, save a tutorial for offline practice, or keep a favorite video for later viewing in low-network areas.
-                </p>
-                <p>
-                  From students downloading educational videos, freelancers saving client references, to casual users collecting entertainment content — Seba Downloader is built for real-life needs. And this is just the beginning. We are continuously working to improve performance, add new features, and expand platform support to make this tool even more powerful and user-friendly in the future.
-                </p>
+              <div className="relative">
+                <div
+                  className="space-y-4 text-gray-500 dark:text-gray-400 leading-relaxed text-base overflow-hidden"
+                  style={{
+                    maxHeight: aboutExpanded ? 9999 : aboutCollapsedHeight,
+                    transition: "max-height 0.5s ease",
+                  }}
+                >
+                  <p ref={aboutFirstParaRef}>
+                    In today's internet landscape, most video downloader tools come with limitations — either they are paid, filled with intrusive ads, or restrict users with download limits and low-quality outputs. Many platforms claim to be free, but in reality, essential features like HD or 4K downloads are locked behind subscriptions. This creates frustration, especially for students, content learners, and everyday users who just want simple, reliable access to videos offline.
+                  </p>
+                  <p>
+                    Seba Downloader was built to solve these exact problems. We believe downloading content should be straightforward, fast, and completely accessible to everyone. That's why our platform is designed to be 100% free for lifetime, with no hidden charges and no forced upgrades. Unlike many existing tools, we support high-quality downloads up to 4K, ensuring users don't have to compromise on clarity.
+                  </p>
+                  <p>
+                    We also prioritize a clean and distraction-free experience. At launch, Seba Downloader runs without ads, because we understand how disruptive excessive advertising can be — especially when you're trying to quickly download a lecture before class, save a tutorial for offline practice, or keep a favorite video for later viewing in low-network areas.
+                  </p>
+                  <p>
+                    From students downloading educational videos, freelancers saving client references, to casual users collecting entertainment content — Seba Downloader is built for real-life needs. And this is just the beginning. We are continuously working to improve performance, add new features, and expand platform support to make this tool even more powerful and user-friendly in the future.
+                  </p>
+                </div>
+                {!aboutExpanded && (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none"
+                    style={{
+                      background: `linear-gradient(to bottom, transparent, ${theme === "dark" ? "#111827" : "white"})`,
+                    }}
+                  />
+                )}
+              </div>
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => setAboutExpanded((prev) => !prev)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <span>{aboutExpanded ? "Show Less" : "Read More"}</span>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      transition: "transform 0.3s ease",
+                      transform: aboutExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    }}
+                  >
+                    ↓
+                  </span>
+                </button>
               </div>
             </div>
           </div>
