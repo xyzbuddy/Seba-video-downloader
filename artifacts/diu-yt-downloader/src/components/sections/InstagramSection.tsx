@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDuration, formatFileSize } from "@/lib/platformUtils";
+import { downloadFile } from "@/lib/downloadFile";
 
 const IG_COLOR = "#C13584";
 
@@ -104,35 +105,18 @@ export default function InstagramSection({ autoUrl }: InstagramSectionProps) {
 
   const handleDownload = () => {
     if (!selectedFormat || !activeUrl) return;
-
-    const downloadUrl = info?.downloadUrl;
     const safeTitle = (info?.title || "instagram_video")
       .replace(/[^\w\s-]/g, "")
       .trim()
       .replace(/\s+/g, "_")
       .slice(0, 80) || "instagram_video";
-
-    if (downloadUrl) {
-      const a = document.createElement("a");
-      a.href = `/api/media/download?url=${encodeURIComponent(activeUrl)}&formatId=${encodeURIComponent(selectedFormat.formatId)}&title=${encodeURIComponent(safeTitle)}&quality=${encodeURIComponent(selectedFormat.quality)}`;
-      a.download = `${safeTitle}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } else {
-      const params = new URLSearchParams({
-        url: activeUrl,
-        formatId: selectedFormat.formatId,
-        title: safeTitle,
-        quality: selectedFormat.quality,
-      });
-      const a = document.createElement("a");
-      a.href = `/api/media/download?${params.toString()}`;
-      a.download = `${safeTitle}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
+    const params = new URLSearchParams({
+      url: activeUrl,
+      formatId: selectedFormat.formatId,
+      title: safeTitle,
+      quality: selectedFormat.quality,
+    });
+    downloadFile(`/api/media/download?${params.toString()}`, `${safeTitle}.mp4`);
     toast({ title: "Download started", description: "Downloading your Instagram video..." });
   };
 

@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { useGetVideoInfo, getGetVideoInfoQueryKey } from "@workspace/api-client-react";
 import { formatDuration, formatFileSize } from "@/lib/platformUtils";
+import { downloadFile } from "@/lib/downloadFile";
 
 const YT_COLOR = "#FF0000";
 
@@ -33,6 +34,7 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
   const [inputUrl, setInputUrl] = useState("");
   const [activeUrl, setActiveUrl] = useState("");
   const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -97,15 +99,18 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
   const handleClear = () => { setInputUrl(""); setActiveUrl(""); setSelectedFormatId(null); };
 
   const handleDownload = () => {
-    if (!selectedFormat || !activeUrl) return;
+    if (!selectedFormat || !activeUrl || isDownloading) return;
     const params = new URLSearchParams({
       url: activeUrl,
       formatId: selectedFormatId || "",
       quality: selectedFormat.quality,
       title: videoInfo?.title || "video",
     });
-    window.location.href = `/api/youtube/download?${params.toString()}`;
+    const safeTitle = (videoInfo?.title || "video").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_").slice(0, 80) || "video";
+    setIsDownloading(true);
+    downloadFile(`/api/youtube/download?${params.toString()}`, `${safeTitle}.mp4`);
     toast({ title: "Download started", description: `Preparing ${selectedFormat.quality} — this may take a moment while the video is processed.` });
+    setTimeout(() => setIsDownloading(false), 8000);
   };
 
   const showInfo = !isLoading && !videoInfo;
@@ -200,12 +205,12 @@ export default function YouTubeSection({ autoUrl }: YouTubeSectionProps) {
                       ))}
                     </div>
                   </div>
-                  <button onClick={handleDownload} disabled={!selectedFormatId}
+                  <button onClick={handleDownload} disabled={!selectedFormatId || isDownloading}
                     className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl text-white font-semibold text-sm transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed self-start"
                     style={{ backgroundColor: YT_COLOR }}
                   >
-                    <Download className="w-4 h-4" />
-                    Download {selectedFormat?.quality}
+                    {isDownloading ? <Spinner className="w-4 h-4 text-white" /> : <Download className="w-4 h-4" />}
+                    {isDownloading ? "Preparing…" : `Download ${selectedFormat?.quality}`}
                   </button>
                 </div>
               </div>

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDuration, formatFileSize } from "@/lib/platformUtils";
+import { downloadFile } from "@/lib/downloadFile";
 
 const FB_COLOR = "#1877F2";
 
@@ -109,7 +110,8 @@ export default function FacebookSection({ autoUrl }: FacebookSectionProps) {
       title: info?.title || "facebook_video",
       quality: selectedFormat.quality,
     });
-    window.location.href = `/api/media/download?${params.toString()}`;
+    const safeTitle = (info?.title || "facebook_video").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_").slice(0, 80) || "facebook_video";
+    downloadFile(`/api/media/download?${params.toString()}`, `${safeTitle}.mp4`);
     toast({ title: "Download started", description: `Downloading ${selectedFormat.quality} video...` });
   };
 

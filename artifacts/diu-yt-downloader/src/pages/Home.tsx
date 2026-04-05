@@ -9,6 +9,7 @@ import { useGetVideoInfo, getGetVideoInfoQueryKey } from "@workspace/api-client-
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { downloadFile } from "@/lib/downloadFile";
 
 const PLATFORM_INFO: Record<Platform, { label: string; color: string; badgeBg: string; badgeText: string; desc: string }> = {
   youtube: { label: "YouTube", color: "#FF0000", badgeBg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900", badgeText: "text-red-600 dark:text-red-400", desc: "480p · 720p · 1080p · 4K" },
@@ -156,7 +157,8 @@ export default function Home() {
       quality: selectedYtFormat.quality,
       title: ytInfo?.title || "video",
     });
-    window.location.href = `/api/youtube/download?${params.toString()}`;
+    const safeTitle = (ytInfo?.title || "video").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_").slice(0, 80) || "video";
+    downloadFile(`/api/youtube/download?${params.toString()}`, `${safeTitle}.mp4`);
     toast({ title: "Download started", description: `Preparing ${selectedYtFormat.quality} — this may take a moment.` });
   };
 
@@ -172,7 +174,8 @@ export default function Home() {
       quality: isTikTok ? (noWatermark ? "NoWatermark" : "WithWatermark") : (fmt?.quality || "Best"),
     });
     if (isTikTok) params.set("noWatermark", noWatermark ? "true" : "false");
-    window.location.href = `/api/media/download?${params.toString()}`;
+    const safeTitle = (mediaInfo.title || `${detected}_video`).replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_").slice(0, 80) || "video";
+    downloadFile(`/api/media/download?${params.toString()}`, `${safeTitle}.mp4`);
     toast({ title: "Download started", description: "Preparing your download..." });
   };
 

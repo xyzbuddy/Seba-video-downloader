@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDuration, formatFileSize } from "@/lib/platformUtils";
+import { downloadFile } from "@/lib/downloadFile";
 
 const TT_COLOR = "#EE1D52";
 const TT_CYAN = "#69C9D0";
@@ -121,7 +122,8 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
       quality: noWatermark ? "NoWatermark" : "WithWatermark",
       noWatermark: noWatermark ? "true" : "false",
     });
-    window.location.href = `/api/media/download?${params.toString()}`;
+    const safeTitle = (info.title || "tiktok_video").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_").slice(0, 80) || "tiktok_video";
+    downloadFile(`/api/media/download?${params.toString()}`, `${safeTitle}.mp4`);
     toast({ title: "Download started", description: `Downloading TikTok video ${noWatermark ? "without watermark" : "with watermark"}...` });
   };
 

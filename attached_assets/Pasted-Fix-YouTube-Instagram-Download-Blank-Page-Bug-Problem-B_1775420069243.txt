@@ -1,0 +1,66 @@
+Fix YouTube & Instagram Download (Blank Page Bug)
+Problem: Both YouTube and Instagram downloads open a blank broken page instead of downloading the file. The browser is being redirected directly to the backend download URL which cannot be accessed directly.
+Root Cause: The frontend is opening the download URL directly in the browser (window.location.href or <a href> redirect) instead of properly triggering a file download.
+Fix — Apply to BOTH YouTube and Instagram download handlers:
+
+Frontend Fix (apply to ALL platforms):
+Replace any direct URL redirect with a proper programmatic download using fetch + blob:
+javascriptasync function downloadFile(downloadUrl, fileName) {
+  try {
+    const response = await fetch(downloadUrl);
+    if (!response.ok) throw new Error('Download failed');
+    
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = fileName + '.mp4';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    showError('Download failed. Please try again.');
+  }
+}
+
+Call this function instead of window.open(), window.location.href, or direct <a href> redirect
+Apply this fix to YouTube, Facebook, Instagram, and TikTok — all 4 platforms
+
+
+Backend Fix — YouTube (/api/youtube/download):
+
+Make sure the route properly streams the video response:
+
+javascriptres.setHeader('Content-Type', 'video/mp4');
+res.setHeader('Content-Disposition', `attachment; filename="video.mp4"`);
+res.setHeader('Access-Control-Allow-Origin', '*');
+// pipe stream directly
+ytStream.pipe(res);
+
+Do NOT use res.redirect() or send a URL string — always pipe the stream
+Increase timeout: req.setTimeout(600000); res.setTimeout(600000);
+Use yt-dlp with proper merge: yt-dlp -f "bestvideo+bestaudio" --merge-output-format mp4
+
+
+Backend Fix — Instagram (/api/instagram):
+
+Replace broken library with TikWM API:
+
+javascriptconst response = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`);
+const videoUrl = response.data.data.hdplay || response.data.data.play;
+res.json({ downloadUrl: videoUrl, title: response.data.data.title || 'video' });
+
+Strip all query params from Instagram URL before sending:
+
+javascriptconst cleanUrl = instagramUrl.split('?')[0];
+
+Frontend then uses the downloadFile() function above with the returned downloadUrl
+
+
+Important:
+
+Apply the downloadFile() blob approach to all 4 platforms to prevent this issue from happening on Facebook and TikTok too
+Test each platform after fix with a real public video URL
+Show a loading indicator while download is being prepared — large files take time
