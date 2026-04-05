@@ -235,11 +235,14 @@ router.get("/youtube/download", async (req, res) => {
 
   const height = formatId.replace("height_", "");
 
-  // Try pre-merged MP4 first (no ffmpeg needed) — falls back to DASH pair.
-  // Pre-merged formats (itag 18 at 360p, etc.) exist for lower qualities and
-  // can be streamed directly, skipping the ffmpeg merge step entirely.
+  // Try pre-merged MP4 first (no ffmpeg needed) — EXACT height match only.
+  // YouTube pre-merged streams top out at 360p (itag 18). Using height<=N
+  // caused yt-dlp to return a 360p pre-merged URL even for 4K requests,
+  // because 360 <= 2160. Exact match (height=N) ensures we only take the
+  // direct-proxy path when a pre-merged stream at the exact requested height
+  // actually exists; otherwise we fall through to DASH + ffmpeg.
   const formatSelector =
-    `best[height<=${height}][ext=mp4][acodec!=none][vcodec!=none]` +
+    `best[height=${height}][ext=mp4][acodec!=none][vcodec!=none]` +
     `/bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]` +
     `/bestvideo[height<=${height}]+bestaudio` +
     `/best[height<=${height}]`;
