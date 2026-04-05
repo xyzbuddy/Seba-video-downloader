@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import path from "path";
 import https from "https";
@@ -417,8 +417,12 @@ router.get("/media/download", async (req, res) => {
     return;
   }
 
-  // ── Facebook — yt-dlp ────────────────────────────────────────────────────
-  // Map simple quality names to yt-dlp format selectors
+  // ── Facebook — yt-dlp piped to stdout ────────────────────────────────────
+  // Pipe yt-dlp stdout directly to the response — same pattern as YouTube.
+  // Using --get-url + proxyStream fails in production because Facebook CDN URLs
+  // are session-locked and expire too quickly for a second HTTP request.
+  // Piping yt-dlp stdout means yt-dlp owns the entire download (cookies,
+  // redirects, auth) and data flows directly from Facebook CDN → yt-dlp → browser.
   const fmtMap: Record<string, string> = {
     best: "best[ext=mp4]/best",
     worst: "worst[ext=mp4]/worst",
@@ -429,22 +433,37 @@ router.get("/media/download", async (req, res) => {
     (formatId && fmtMap[formatId]) ||
     (formatId && formatId !== "best" && formatId !== "worst" ? formatId : "best[ext=mp4]/best");
 
-  try {
-    const { stdout } = await execFileAsync(
-      YT_DLP,
-      ["-f", fmtSelector, "--get-url", "--no-playlist", "--no-warnings", url],
-      { timeout: 30000 }
-    );
-    const directUrl = stdout.trim().split("\n").filter(Boolean)[0];
-    if (!directUrl) {
-      res.status(500).json({ error: "No download URL found" });
-      return;
-    }
-    proxyStream(directUrl, res, req, "https://www.facebook.com/");
-  } catch (err) {
-    req.log?.error?.({ err }, "Facebook download failed");
+  const ytdlpProcess = spawn(YT_DLP, [
+    "-f", fmtSelector,
+    "-o", "-",
+    "--no-playlist",
+    "--no-warnings",
+    url,
+  ]);
+
+  let clientGone = false;
+  req.on("close", () => {
+    clientGone = true;
+    if (!ytdlpProcess.killed) ytdlpProcess.kill();
+  });
+
+  ytdlpProcess.stdout.pipe(res);
+
+  ytdlpProcess.stderr.on("data", (chunk: Buffer) => {
+    req.log?.info?.({ stderr: chunk.toString() }, "Facebook yt-dlp progress");
+  });
+
+  ytdlpProcess.on("error", (err: Error) => {
+    req.log?.error?.({ err }, "Facebook yt-dlp spawn error");
     if (!res.headersSent) res.status(500).json({ error: "Failed to download video" });
-  }
+  });
+
+  ytdlpProcess.on("close", (code: number) => {
+    if (clientGone) return;
+    if (code !== 0) {
+      req.log?.error?.({ code }, "Facebook yt-dlp exited with non-zero code");
+    }
+  });
 });
 
 export default router;
