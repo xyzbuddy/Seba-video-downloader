@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, ArrowRight, Download } from "lucide-react";
-import { detectPlatform, isValidYoutubeUrl, type Platform } from "@/lib/platformUtils";
+import { detectPlatform, isValidYoutubeUrl, formatDuration, formatFileSize, type Platform } from "@/lib/platformUtils";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { useGetVideoInfo, getGetVideoInfoQueryKey } from "@workspace/api-client-react";
-import { formatFileSize } from "@/lib/platformUtils";
+import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
@@ -17,20 +17,6 @@ const PLATFORM_INFO: Record<Platform, { label: string; color: string; badgeBg: s
   tiktok: { label: "TikTok", color: "#EE1D52", badgeBg: "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700", badgeText: "text-gray-900 dark:text-white", desc: "Without or with watermark" },
 };
 
-const PRESET_OPTS: Record<Exclude<Platform, "youtube">, { label: string; formatId: string; quality: string; noWatermark?: string }[]> = {
-  facebook: [
-    { label: "HD Quality", formatId: "best", quality: "HD" },
-    { label: "SD Quality", formatId: "worst", quality: "SD" },
-  ],
-  instagram: [
-    { label: "Best Quality (MP4)", formatId: "best", quality: "Best" },
-  ],
-  tiktok: [
-    { label: "Without Watermark ✅", formatId: "no_watermark", quality: "NoWatermark", noWatermark: "true" },
-    { label: "With Watermark", formatId: "with_watermark", quality: "WithWatermark", noWatermark: "false" },
-  ],
-};
-
 const PLATFORM_CARDS = [
   { id: "youtube" as Platform, label: "YouTube Downloader", iconText: "▶", iconBg: "#FF0000", desc: "480p · 720p · 1080p · 4K" },
   { id: "facebook" as Platform, label: "Facebook Downloader", iconText: "f", iconBg: "#1877F2", desc: "HD and SD quality" },
@@ -38,21 +24,54 @@ const PLATFORM_CARDS = [
   { id: "tiktok" as Platform, label: "TikTok Downloader", iconText: "♪", iconBg: "#000", desc: "Without watermark support" },
 ];
 
+type MediaInfo = {
+  platform: string;
+  title: string;
+  thumbnail?: string;
+  duration?: number;
+  author?: string;
+  formats: { formatId: string; quality: string; label: string; filesize?: number }[];
+};
+
+async function fetchMediaInfo(url: string): Promise<MediaInfo> {
+  const res = await fetch(`/api/media/info?url=${encodeURIComponent(url)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error || "Failed to fetch video info");
+  }
+  return res.json();
+}
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [detected, setDetected] = useState<Platform | null>(null);
   const [ytFetchUrl, setYtFetchUrl] = useState("");
+  const [mediaFetchUrl, setMediaFetchUrl] = useState("");
+  const [ytSelectedFormat, setYtSelectedFormat] = useState<string | null>(null);
+  const [mediaSelectedFormat, setMediaSelectedFormat] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
   const handleChange = (val: string) => {
     setUrl(val);
     const platform = detectPlatform(val.trim()) || null;
+    if (platform !== detected) {
+      setMediaFetchUrl("");
+      setMediaSelectedFormat(null);
+      setYtFetchUrl("");
+      setYtSelectedFormat(null);
+    }
     setDetected(platform);
-    if (platform !== "youtube") setYtFetchUrl("");
   };
 
-  const handleClear = () => { setUrl(""); setDetected(null); setYtFetchUrl(""); };
+  const handleClear = () => {
+    setUrl("");
+    setDetected(null);
+    setYtFetchUrl("");
+    setMediaFetchUrl("");
+    setYtSelectedFormat(null);
+    setMediaSelectedFormat(null);
+  };
 
   const handlePaste = async () => {
     try {
@@ -79,25 +98,87 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [url, detected]);
 
+  useEffect(() => {
+    if (!detected || detected === "youtube") { setMediaFetchUrl(""); return; }
+    const t = setTimeout(() => {
+      const trimmed = url.trim();
+      if (trimmed) setMediaFetchUrl(trimmed);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [url, detected]);
+
   const { data: ytInfo, isLoading: ytLoading, isError: ytError } = useGetVideoInfo(
     { url: ytFetchUrl },
     { query: { enabled: !!ytFetchUrl, queryKey: getGetVideoInfoQueryKey({ url: ytFetchUrl }), retry: 1 } }
   );
 
-  const handleQuickDownload = (platform: Platform, formatId: string, quality: string, title?: string, noWatermark?: string) => {
-    const encodedUrl = encodeURIComponent(url.trim());
-    const encodedTitle = encodeURIComponent(title || `${platform}_video`);
-    if (platform === "youtube") {
-      window.location.href = `/api/youtube/download?url=${encodedUrl}&formatId=${formatId}&quality=${encodeURIComponent(quality)}&title=${encodedTitle}`;
+  const { data: mediaInfo, isLoading: mediaLoading, isError: mediaError } = useQuery({
+    queryKey: ["home-media-info", mediaFetchUrl],
+    queryFn: () => fetchMediaInfo(mediaFetchUrl),
+    enabled: !!mediaFetchUrl,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (ytInfo?.formats?.length) {
+      const preferred = ytInfo.formats.find(f => f.formatId === "height_1080") || ytInfo.formats[0];
+      setYtSelectedFormat(preferred.formatId);
     } else {
-      let href = `/api/media/download?url=${encodedUrl}&formatId=${formatId}&quality=${encodeURIComponent(quality)}&title=${encodedTitle}`;
-      if (noWatermark !== undefined) href += `&noWatermark=${noWatermark}`;
-      window.location.href = href;
+      setYtSelectedFormat(null);
     }
-    toast({ title: "Download started", description: `Preparing your ${quality} download...` });
+  }, [ytInfo]);
+
+  useEffect(() => {
+    if (mediaInfo?.formats?.length && detected !== "tiktok") {
+      setMediaSelectedFormat(mediaInfo.formats[0].formatId);
+    } else if (detected === "tiktok") {
+      setMediaSelectedFormat("no_watermark");
+    } else {
+      setMediaSelectedFormat(null);
+    }
+  }, [mediaInfo, detected]);
+
+  const selectedYtFormat = useMemo(() => {
+    if (!ytInfo || !ytSelectedFormat) return null;
+    return ytInfo.formats.find(f => f.formatId === ytSelectedFormat);
+  }, [ytInfo, ytSelectedFormat]);
+
+  const selectedMediaFormat = useMemo(() => {
+    if (!mediaInfo || !mediaSelectedFormat) return null;
+    return mediaInfo.formats.find(f => f.formatId === mediaSelectedFormat);
+  }, [mediaInfo, mediaSelectedFormat]);
+
+  const handleYtDownload = () => {
+    if (!selectedYtFormat || !ytFetchUrl) return;
+    const params = new URLSearchParams({
+      url: ytFetchUrl,
+      formatId: ytSelectedFormat || "",
+      quality: selectedYtFormat.quality,
+      title: ytInfo?.title || "video",
+    });
+    window.location.href = `/api/youtube/download?${params.toString()}`;
+    toast({ title: "Download started", description: `Preparing ${selectedYtFormat.quality} — this may take a moment.` });
+  };
+
+  const handleMediaDownload = () => {
+    if (!mediaInfo || !mediaFetchUrl || !mediaSelectedFormat) return;
+    const fmt = selectedMediaFormat;
+    const isTikTok = detected === "tiktok";
+    const noWatermark = isTikTok && mediaSelectedFormat === "no_watermark";
+    const params = new URLSearchParams({
+      url: mediaFetchUrl,
+      formatId: mediaSelectedFormat,
+      title: mediaInfo.title || `${detected}_video`,
+      quality: isTikTok ? (noWatermark ? "NoWatermark" : "WithWatermark") : (fmt?.quality || "Best"),
+    });
+    if (isTikTok) params.set("noWatermark", noWatermark ? "true" : "false");
+    window.location.href = `/api/media/download?${params.toString()}`;
+    toast({ title: "Download started", description: "Preparing your download..." });
   };
 
   const platformInfo = detected ? PLATFORM_INFO[detected] : null;
+  const isLoading = detected === "youtube" ? ytLoading : mediaLoading;
+  const isError = detected === "youtube" ? ytError : mediaError;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -147,43 +228,231 @@ export default function Home() {
                       {platformInfo.label} link detected · {platformInfo.desc}
                     </span>
 
-                    {detected === "youtube" && (
-                      ytLoading ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-2">
-                          <Spinner className="w-4 h-4" />
-                          <span>Fetching available qualities...</span>
+                    {/* Loading skeleton */}
+                    {isLoading && (
+                      <div className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 flex gap-6 shadow">
+                        <div className={`bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse flex-shrink-0 ${detected === "tiktok" ? "w-36 h-48" : "w-48 h-28"}`} />
+                        <div className="flex-1 space-y-3 pt-2">
+                          <div className="h-5 bg-gray-200 dark:bg-gray-800 rounded animate-pulse w-3/4" />
+                          <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse w-1/2" />
+                          <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse w-1/3" />
                         </div>
-                      ) : ytError ? (
-                        <p className="text-sm text-red-500">Couldn't load video info. <button onClick={() => navigate(`/youtube?url=${encodeURIComponent(url.trim())}`)} className="underline">Try the YouTube page →</button></p>
-                      ) : ytInfo?.formats ? (
-                        <div className="flex flex-wrap justify-center gap-2">
-                          {ytInfo.formats.map((fmt) => (
-                            <motion.button key={fmt.formatId} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
-                              onClick={() => handleQuickDownload("youtube", fmt.formatId, fmt.quality, ytInfo.title)}
-                              className="group flex flex-col items-center px-5 py-2.5 rounded-xl border-2 border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white hover:border-red-600 dark:hover:bg-red-600 dark:hover:text-white dark:hover:border-red-600 transition-all font-semibold text-sm"
-                            >
-                              <Download className="w-3.5 h-3.5 mb-0.5" />
-                              <span>{fmt.quality}</span>
-                              {fmt.filesize && <span className="text-xs font-normal opacity-70 mt-0.5">{formatFileSize(fmt.filesize)}</span>}
-                            </motion.button>
-                          ))}
-                        </div>
-                      ) : null
+                      </div>
                     )}
 
-                    {detected !== "youtube" && (
-                      <div className="flex flex-wrap justify-center gap-2">
-                        {PRESET_OPTS[detected as Exclude<Platform, "youtube">].map((opt) => (
-                          <motion.button key={opt.formatId} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
-                            onClick={() => handleQuickDownload(detected, opt.formatId, opt.quality, undefined, opt.noWatermark)}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white shadow-md transition-all hover:opacity-90"
-                            style={{ backgroundColor: platformInfo.color }}
-                          >
-                            <Download className="w-4 h-4" />
-                            {opt.label}
-                          </motion.button>
-                        ))}
-                      </div>
+                    {/* Error state */}
+                    {isError && !isLoading && (
+                      <p className="text-sm text-red-500">
+                        Couldn't load video info.{" "}
+                        <button onClick={() => navigate(`/${detected}?url=${encodeURIComponent(url.trim())}`)} className="underline">
+                          Try the {platformInfo.label} page →
+                        </button>
+                      </p>
+                    )}
+
+                    {/* YouTube rich card */}
+                    {detected === "youtube" && ytInfo && !ytLoading && (
+                      <motion.div
+                        key="yt-home-card"
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.3 }}
+                        className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-md text-left"
+                      >
+                        <div className="flex flex-col sm:flex-row">
+                          <div className="sm:w-64 flex-shrink-0 relative">
+                            <img src={ytInfo.thumbnail} alt={ytInfo.title} className="w-full h-44 sm:h-full object-cover" />
+                            {ytInfo.duration && (
+                              <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">
+                                {formatDuration(ytInfo.duration)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 p-5 flex flex-col gap-4">
+                            <div>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 mb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Ready to download
+                              </div>
+                              <h3 className="font-semibold text-gray-900 dark:text-white text-lg leading-snug line-clamp-2">{ytInfo.title}</h3>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{ytInfo.channelName}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Select Resolution</p>
+                              <div className="flex flex-wrap gap-2">
+                                {ytInfo.formats.map((fmt) => (
+                                  <button key={fmt.formatId} onClick={() => setYtSelectedFormat(fmt.formatId)}
+                                    className={`flex flex-col items-center px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${ytSelectedFormat === fmt.formatId ? "border-red-500 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400" : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500"}`}
+                                  >
+                                    <span>{fmt.quality}</span>
+                                    {fmt.filesize && <span className="text-xs font-normal opacity-70 mt-0.5">{formatFileSize(fmt.filesize)}</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <button onClick={handleYtDownload} disabled={!ytSelectedFormat}
+                              className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl text-white font-semibold text-sm transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed self-start"
+                              style={{ backgroundColor: "#FF0000" }}
+                            >
+                              <Download className="w-4 h-4" />
+                              Download {selectedYtFormat?.quality}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Facebook rich card */}
+                    {detected === "facebook" && mediaInfo && !mediaLoading && (
+                      <motion.div
+                        key="fb-home-card"
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.3 }}
+                        className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-md text-left"
+                      >
+                        <div className="flex flex-col sm:flex-row">
+                          {mediaInfo.thumbnail && (
+                            <div className="sm:w-64 flex-shrink-0 relative">
+                              <img src={mediaInfo.thumbnail} alt={mediaInfo.title} className="w-full h-44 sm:h-full object-cover" />
+                              {mediaInfo.duration && (
+                                <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">{formatDuration(mediaInfo.duration)}</span>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex-1 p-5 flex flex-col gap-4">
+                            <div>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 mb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Ready to download
+                              </div>
+                              <h3 className="font-semibold text-gray-900 dark:text-white text-lg leading-snug line-clamp-2">{mediaInfo.title}</h3>
+                              {mediaInfo.author && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{mediaInfo.author}</p>}
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Select Quality</p>
+                              <div className="flex flex-wrap gap-2">
+                                {mediaInfo.formats.map((fmt) => (
+                                  <button key={fmt.formatId} onClick={() => setMediaSelectedFormat(fmt.formatId)}
+                                    className={`flex flex-col items-center px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${mediaSelectedFormat === fmt.formatId ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400" : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400"}`}
+                                  >
+                                    <span>{fmt.quality}</span>
+                                    {fmt.filesize && <span className="text-xs font-normal opacity-70 mt-0.5">{formatFileSize(fmt.filesize)}</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <button onClick={handleMediaDownload} disabled={!mediaSelectedFormat}
+                              className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl text-white font-semibold text-sm transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed self-start"
+                              style={{ backgroundColor: "#1877F2" }}
+                            >
+                              <Download className="w-4 h-4" /> Download {selectedMediaFormat?.quality}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Instagram rich card */}
+                    {detected === "instagram" && mediaInfo && !mediaLoading && (
+                      <motion.div
+                        key="ig-home-card"
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.3 }}
+                        className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-md text-left"
+                      >
+                        <div className="flex flex-col sm:flex-row">
+                          {mediaInfo.thumbnail && (
+                            <div className="sm:w-48 flex-shrink-0 relative">
+                              <img src={mediaInfo.thumbnail} alt={mediaInfo.title} className="w-full h-48 sm:h-full object-cover" />
+                              {mediaInfo.duration && (
+                                <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">{formatDuration(mediaInfo.duration)}</span>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex-1 p-5 flex flex-col gap-4">
+                            <div>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 mb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Ready to download
+                              </div>
+                              <h3 className="font-semibold text-gray-900 dark:text-white text-lg leading-snug line-clamp-3">{mediaInfo.title}</h3>
+                              {mediaInfo.author && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">@{mediaInfo.author}</p>}
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Format</p>
+                              <div className="flex flex-wrap gap-2">
+                                {mediaInfo.formats.map((fmt) => (
+                                  <button key={fmt.formatId} onClick={() => setMediaSelectedFormat(fmt.formatId)}
+                                    className={`flex flex-col items-center px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${mediaSelectedFormat === fmt.formatId ? "border-pink-500 bg-pink-50 dark:bg-pink-950/20 text-pink-600 dark:text-pink-400" : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400"}`}
+                                  >
+                                    <span>{fmt.quality}</span>
+                                    {fmt.filesize && <span className="text-xs font-normal opacity-70 mt-0.5">{formatFileSize(fmt.filesize)}</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <button onClick={handleMediaDownload} disabled={!mediaSelectedFormat}
+                              className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl text-white font-semibold text-sm transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed self-start bg-gradient-to-r from-[#f09433] to-[#bc1888]"
+                            >
+                              <Download className="w-4 h-4" /> Download Best Quality
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* TikTok rich card */}
+                    {detected === "tiktok" && mediaInfo && !mediaLoading && (
+                      <motion.div
+                        key="tt-home-card"
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.3 }}
+                        className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-md text-left"
+                      >
+                        <div className="flex flex-col sm:flex-row">
+                          {mediaInfo.thumbnail && (
+                            <div className="sm:w-40 flex-shrink-0 relative">
+                              <img src={mediaInfo.thumbnail} alt={mediaInfo.title} className="w-full h-48 sm:h-full object-cover" />
+                              {mediaInfo.duration && (
+                                <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">{formatDuration(mediaInfo.duration)}</span>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex-1 p-5 flex flex-col gap-4">
+                            <div>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 mb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Ready to download
+                              </div>
+                              <h3 className="font-semibold text-gray-900 dark:text-white text-base leading-snug line-clamp-3">{mediaInfo.title}</h3>
+                              {mediaInfo.author && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">@{mediaInfo.author}</p>}
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Download Options</p>
+                              <div className="flex flex-wrap gap-2">
+                                {mediaInfo.formats.map((fmt) => (
+                                  <button key={fmt.formatId} onClick={() => setMediaSelectedFormat(fmt.formatId)}
+                                    className={`flex flex-col items-center px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${mediaSelectedFormat === fmt.formatId ? "border-[#EE1D52] bg-red-50 dark:bg-red-950/20 text-[#EE1D52]" : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400"}`}
+                                  >
+                                    <span>{fmt.quality}</span>
+                                    {fmt.filesize && <span className="text-xs font-normal opacity-70 mt-0.5">{formatFileSize(fmt.filesize)}</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <button onClick={handleMediaDownload} disabled={!mediaInfo}
+                              className="flex items-center justify-center gap-2 py-3 px-6 rounded-xl text-white font-semibold text-sm transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed self-start"
+                              style={{ backgroundColor: "#010101" }}
+                            >
+                              <Download className="w-4 h-4" />
+                              {mediaSelectedFormat === "no_watermark" ? "Download Without Watermark ✅" : "Download With Watermark"}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
                     )}
 
                     <button onClick={() => navigate(`/${detected}?url=${encodeURIComponent(url.trim())}`)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors underline underline-offset-2">
