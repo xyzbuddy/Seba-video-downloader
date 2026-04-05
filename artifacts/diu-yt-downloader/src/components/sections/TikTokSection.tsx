@@ -137,7 +137,7 @@ export default function TikTokSection({ autoUrl }: TikTokSectionProps) {
             <TikTokLogo size={22} />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">TikTok Downloader</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">TikTok Video Downloader</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">Download TikTok videos without watermark</p>
           </div>
         </div>
