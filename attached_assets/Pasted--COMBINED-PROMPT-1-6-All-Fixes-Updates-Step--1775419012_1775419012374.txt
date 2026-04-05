@@ -1,0 +1,125 @@
+এই নাও ভাই, সব একসাথে:
+
+---
+
+## ✅ COMBINED PROMPT #1–6 — All Fixes & Updates
+
+---
+
+### Step 1: Add "Home" to Header Navigation
+
+* Add **"Home"** as the **first item** in the header navigation bar — before YouTube, Facebook, Instagram, TikTok
+* Updated nav order: `Home | YouTube | Facebook | Instagram | TikTok`
+* Clicking **Home** → navigates to `/` (home page)
+* On home page, **Home** tab should be **highlighted/active**
+* Same hover and active styling as other tabs
+* Do NOT change any other part of the header
+
+---
+
+### Step 2: Show Full Video Preview on Home Page for ALL 4 Platforms
+
+**Problem:** Home page only shows plain resolution buttons after link paste — no preview card.
+
+**Fix:** Show the **exact same full preview card** as each platform page for all 4 platforms:
+
+* **YouTube:** Thumbnail, "Ready to download" badge, title, channel name + resolution buttons with file size (`1080p | 720p | 480p | 360p | 4K`) + red Download button
+* **Facebook:** Thumbnail, title, duration + quality buttons (`HD | SD`) + blue Download button
+* **Instagram:** Thumbnail, caption + quality button (`Best Quality MP4`) + gradient Download button
+* **TikTok:** Thumbnail, username, description + options (`Without Watermark ✅ | With Watermark`) + black/pink Download button
+
+**Behavior:**
+* Preview card appears below input field — replaces current plain buttons
+* Each platform shows its own themed card matching platform accent color
+* Clicking download → file downloads immediately
+* Do NOT change any of the 4 platform pages — only fix home page
+* Fully responsive — stack on mobile
+
+---
+
+### Step 3: Fix Instagram Download (Blank Page Bug)
+
+**Problem:** Clicking download on Instagram opens a blank broken page — no file downloads.
+
+**Fix — Replace entire Instagram backend logic:**
+
+1. Remove current `/api/media/download` redirect approach for Instagram completely
+2. Replace with **TikWM API** (supports Instagram reels):
+```
+GET https://www.tikwm.com/api/?url=INSTAGRAM_REEL_URL
+```
+3. Backend flow:
+   * Receive Instagram URL from frontend
+   * Call `https://www.tikwm.com/api/?url=<encoded_instagram_url>`
+   * Extract direct video URL from response (`data.play` or `data.hdplay`)
+   * Return to frontend as JSON: `{ downloadUrl: "...", title: "..." }`
+4. Frontend flow — use programmatic download, do NOT redirect browser:
+```javascript
+const a = document.createElement('a');
+a.href = downloadUrl;
+a.download = title + '.mp4';
+a.target = '_blank';
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+```
+5. Strip all query params (`utm_source` etc.) from Instagram URL before sending to API
+6. Error handling: show *"Could not fetch this video. Make sure the account is public and the link is valid."*
+
+---
+
+### Step 4: Replace Dark/Light Toggle with Pill-Shaped Switch Button
+
+* Remove current sun/moon icon ☀️ button from header
+* Replace with a **pill-shaped toggle switch:**
+  * Dark mode (default): circle slider on left, dark background
+  * Light mode: circle slider on right, green background (`#22c55e`)
+  * Smooth slide animation when toggling
+  * Circle inside: white/light gray
+* Keep same position in header (far right)
+* Toggle functionality must still work — switches dark/light mode
+* Do NOT change anything else in header
+
+---
+
+### Step 5: Fix Incomplete Download / File Size Mismatch Bug
+
+**Problem:** A 930MB file downloads as only 830MB — incomplete and possibly corrupted.
+
+**Fix:**
+
+1. Remove any response size limits — no `maxBuffer`, `maxSize`, or byte limits in download handler
+2. Fix stream piping — pipe full stream correctly:
+```javascript
+stream.pipe(res); // correct
+```
+3. For `yt-dlp` — always merge video + audio:
+```
+yt-dlp -f "bestvideo[height<=1080]+bestaudio/best" --merge-output-format mp4 URL
+```
+4. Do NOT set hardcoded `Content-Length` unless file is pre-merged
+5. Set correct headers:
+```javascript
+res.setHeader('Content-Type', 'video/mp4');
+res.setHeader('Content-Disposition', `attachment; filename="video.mp4"`);
+```
+6. Increase timeout limits:
+```javascript
+req.setTimeout(600000); // 10 minutes
+res.setTimeout(600000);
+```
+7. For `@distube/ytdl-core` — use combined format or switch to `yt-dlp` for 1080p+
+8. Test with a known large file — verify downloaded size matches displayed size exactly
+
+---
+
+### Step 6: Footer GitHub Link Text Change
+
+* Change GitHub link text from `xyzbuddy` → `GitHub`
+* Clicking still opens `https://github.com/xyzbuddy` in new tab
+* GitHub icon stays as is
+* Do NOT change anything else in footer
+
+---
+
+ভাই এই একটা prompt Replit AI তে দাও — সব একসাথে fix হয়ে যাবে! 🙌
