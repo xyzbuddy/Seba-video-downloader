@@ -12,10 +12,12 @@ const execFileAsync = promisify(execFile);
 const YT_DLP = path.join(__dirname, "..", "yt-dlp");
 
 // Common extra flags added to every yt-dlp invocation.
-// --js-runtimes node  — lets yt-dlp use Node.js to solve YouTube's JS challenges
-//                       without this, production servers get "Sign in to confirm
-//                       you're not a bot" because no JS runtime is found.
-const YT_DLP_BASE_ARGS = ["--js-runtimes", "node"];
+// --extractor-args youtube:player_client=tv_embedded  — use the embedded TV
+//   player API instead of the web client. Production server IPs are IP-banned
+//   by YouTube's web endpoint (HTTP 429 + "Sign in to confirm you're not a bot").
+//   The tv_embedded client (internally ANDROID_VR) bypasses that check entirely
+//   and returns all formats including 4K DASH streams.
+const YT_DLP_BASE_ARGS = ["--extractor-args", "youtube:player_client=tv_embedded"];
 
 // Resolve ffmpeg dynamically — Nix store hashes change across system updates
 function resolveFfmpegBin(): string {
