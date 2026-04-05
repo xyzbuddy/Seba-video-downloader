@@ -60,56 +60,46 @@ function proxyStream(directUrl: string, res: any, req: any) {
   });
 }
 
-// Scrape Instagram embed page to extract video URL (no API key required)
-async function scrapeInstagramEmbed(url: string): Promise<{
-  videoUrl: string;
+// Fetch Instagram video info via TikWM API
+async function fetchInstagramViaTikwm(url: string): Promise<{
+  downloadUrl: string;
   thumbnail: string;
   title: string;
+  duration: number;
+  author: string;
 }> {
-  const shortcodeMatch = url.match(/\/(p|reel|tv|stories)\/([A-Za-z0-9_-]+)/);
-  if (!shortcodeMatch) throw new Error("Invalid Instagram URL — could not extract post shortcode");
-  const shortcode = shortcodeMatch[2];
-
-  const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/`;
-  const res = await fetch(embedUrl, {
+  const tikUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`;
+  const response = await fetch(tikUrl, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "en-US,en;q=0.9",
+      Accept: "application/json",
     },
   });
+  const data = (await response.json()) as {
+    code: number;
+    msg: string;
+    data?: {
+      title: string;
+      cover: string;
+      duration: number;
+      play: string;
+      author: { nickname: string };
+      size: number;
+    };
+  };
 
-  if (!res.ok) throw new Error(`Instagram embed returned ${res.status}`);
-  const html = await res.text();
+  if (data.code !== 0 || !data.data) {
+    throw new Error(data.msg || "TikWM API returned an error");
+  }
 
-  // Try multiple extraction patterns
-  const videoUrlMatch =
-    html.match(/"video_url":"(https:[^"]+)"/) ||
-    html.match(/video_url":"(https:\\u002F\\u002F[^"]+)"/) ||
-    html.match(/<meta property="og:video"[^>]+content="([^"]+)"/i);
-
-  if (!videoUrlMatch) throw new Error("No video URL found in Instagram embed — might be a photo post or private");
-
-  const videoUrl = videoUrlMatch[1]
-    .replace(/\\u0026/g, "&")
-    .replace(/\\u002F/g, "/")
-    .replace(/\\/g, "");
-
-  const thumbnailMatch =
-    html.match(/"display_url":"(https:[^"]+)"/) ||
-    html.match(/<meta property="og:image"[^>]+content="([^"]+)"/i);
-  const thumbnail = thumbnailMatch
-    ? thumbnailMatch[1].replace(/\\u0026/g, "&").replace(/\\/g, "")
-    : "";
-
-  const captionMatch =
-    html.match(/"accessibility_caption":"([^"]+)"/) ||
-    html.match(/<meta property="og:description"[^>]+content="([^"]+)"/i) ||
-    html.match(/"text":"([^"]{5,120})"/);
-  const title = captionMatch ? captionMatch[1].slice(0, 120) : "Instagram Video";
-
-  return { videoUrl, thumbnail, title };
+  return {
+    downloadUrl: data.data.play,
+    thumbnail: data.data.cover,
+    title: data.data.title || "Instagram Video",
+    duration: data.data.duration || 0,
+    author: data.data.author?.nickname || "Instagram",
+  };
 }
 
 // GET /api/detect?url=
@@ -185,62 +175,31 @@ router.get("/media/info", async (req, res) => {
     return;
   }
 
-  // ── Instagram — embed scraper + yt-dlp fallback ─────────────────────────
+  // ── Instagram — TikWM API ───────────────────────────────────────────────
   if (platform === "instagram") {
     const cleanUrl = cleanInstagramUrl(url);
-
-    // 1. Try yt-dlp first (with mobile Safari user-agent)
     try {
-      const { stdout } = await execFileAsync(
-        YT_DLP,
-        [
-          "--dump-json",
-          "--no-playlist",
-          "--no-warnings",
-          "--no-check-certificates",
-          "--add-header",
-          "User-Agent:Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
-          cleanUrl,
-        ],
-        { timeout: 25000 }
-      );
-      const info = JSON.parse(stdout.trim());
+      const igData = await fetchInstagramViaTikwm(cleanUrl);
       res.json({
         platform: "instagram",
-        title: (info.title || info.description || "Instagram Video").replace(/\n/g, " ").slice(0, 120),
-        thumbnail: info.thumbnail,
-        duration: info.duration || 0,
-        author: info.uploader || info.channel || "Instagram",
+        title: igData.title.replace(/\n/g, " ").slice(0, 120),
+        thumbnail: igData.thumbnail,
+        duration: igData.duration,
+        author: igData.author,
+        downloadUrl: igData.downloadUrl,
         formats: [
           {
-            formatId: "best",
+            formatId: "tikwm",
             quality: "Best",
             label: "Best Quality (MP4)",
-            filesize: info.filesize || info.filesize_approx,
           },
         ],
       });
-      return;
-    } catch (ytErr) {
-      req.log?.warn?.({ ytErr }, "yt-dlp failed for Instagram, trying embed scraper");
-    }
-
-    // 2. Fallback: embed page scraper
-    try {
-      const scraped = await scrapeInstagramEmbed(cleanUrl);
-      res.json({
-        platform: "instagram",
-        title: scraped.title,
-        thumbnail: scraped.thumbnail,
-        duration: 0,
-        author: "Instagram",
-        formats: [{ formatId: "embed", quality: "Best", label: "Best Quality (MP4)" }],
-      });
-    } catch (embedErr) {
-      req.log?.error?.({ embedErr }, "Instagram embed scraper also failed");
+    } catch (err) {
+      req.log?.error?.({ err }, "TikWM Instagram fetch failed");
       res
         .status(500)
-        .json({ error: "Failed to fetch Instagram video. The content might be private or unavailable." });
+        .json({ error: "Could not fetch this video. Make sure the account is public and the link is valid." });
     }
     return;
   }
@@ -362,55 +321,16 @@ router.get("/media/download", async (req, res) => {
     return;
   }
 
-  // ── Instagram ────────────────────────────────────────────────────────────
+  // ── Instagram — TikWM API ────────────────────────────────────────────────
   if (platform === "instagram") {
     const cleanUrl = cleanInstagramUrl(url);
-
-    // If formatId is "embed", we got info from the embed scraper — use it again
-    if (formatId === "embed") {
-      try {
-        const scraped = await scrapeInstagramEmbed(cleanUrl);
-        proxyStream(scraped.videoUrl, res, req);
-        return;
-      } catch (err) {
-        req.log?.error?.({ err }, "Instagram embed download failed");
-        if (!res.headersSent) res.status(500).json({ error: "Download failed" });
-        return;
-      }
-    }
-
-    // Otherwise try yt-dlp first
     try {
-      const { stdout } = await execFileAsync(
-        YT_DLP,
-        [
-          "-f",
-          "best[ext=mp4]/best",
-          "--get-url",
-          "--no-playlist",
-          "--no-warnings",
-          "--no-check-certificates",
-          "--add-header",
-          "User-Agent:Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
-          cleanUrl,
-        ],
-        { timeout: 25000 }
-      );
-      const directUrl = stdout.trim().split("\n").filter(Boolean)[0];
-      if (!directUrl) throw new Error("No URL from yt-dlp");
-      proxyStream(directUrl, res, req);
-      return;
-    } catch (ytErr) {
-      req.log?.warn?.({ ytErr }, "yt-dlp download failed for Instagram, trying embed scraper");
-    }
-
-    // Fallback: embed scraper
-    try {
-      const scraped = await scrapeInstagramEmbed(cleanUrl);
-      proxyStream(scraped.videoUrl, res, req);
+      const igData = await fetchInstagramViaTikwm(cleanUrl);
+      proxyStream(igData.downloadUrl, res, req);
     } catch (err) {
-      req.log?.error?.({ err }, "Instagram download both methods failed");
-      if (!res.headersSent) res.status(500).json({ error: "Failed to download Instagram video" });
+      req.log?.error?.({ err }, "Instagram TikWM download failed");
+      if (!res.headersSent)
+        res.status(500).json({ error: "Could not fetch this video. Make sure the account is public and the link is valid." });
     }
     return;
   }

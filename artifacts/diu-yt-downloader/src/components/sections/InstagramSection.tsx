@@ -24,6 +24,7 @@ async function fetchIgInfo(url: string) {
     thumbnail?: string;
     duration?: number;
     author?: string;
+    downloadUrl?: string;
     formats: { formatId: string; quality: string; label: string; filesize?: number }[];
   }>;
 }
@@ -103,13 +104,35 @@ export default function InstagramSection({ autoUrl }: InstagramSectionProps) {
 
   const handleDownload = () => {
     if (!selectedFormat || !activeUrl) return;
-    const params = new URLSearchParams({
-      url: activeUrl,
-      formatId: selectedFormat.formatId,
-      title: info?.title || "instagram_video",
-      quality: selectedFormat.quality,
-    });
-    window.location.href = `/api/media/download?${params.toString()}`;
+
+    const downloadUrl = info?.downloadUrl;
+    const safeTitle = (info?.title || "instagram_video")
+      .replace(/[^\w\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .slice(0, 80) || "instagram_video";
+
+    if (downloadUrl) {
+      const a = document.createElement("a");
+      a.href = `/api/media/download?url=${encodeURIComponent(activeUrl)}&formatId=${encodeURIComponent(selectedFormat.formatId)}&title=${encodeURIComponent(safeTitle)}&quality=${encodeURIComponent(selectedFormat.quality)}`;
+      a.download = `${safeTitle}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      const params = new URLSearchParams({
+        url: activeUrl,
+        formatId: selectedFormat.formatId,
+        title: safeTitle,
+        quality: selectedFormat.quality,
+      });
+      const a = document.createElement("a");
+      a.href = `/api/media/download?${params.toString()}`;
+      a.download = `${safeTitle}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
     toast({ title: "Download started", description: "Downloading your Instagram video..." });
   };
 

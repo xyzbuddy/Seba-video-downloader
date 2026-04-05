@@ -54,7 +54,7 @@ router.get("/youtube/info", async (req, res) => {
     const { stdout } = await execFileAsync(
       YT_DLP,
       ["--dump-json", "--no-playlist", url],
-      { timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
+      { timeout: 60000 }
     );
 
     const info = JSON.parse(stdout);
@@ -175,7 +175,7 @@ router.get("/youtube/download-url", async (req, res) => {
     const { stdout } = await execFileAsync(
       YT_DLP,
       ["-f", formatSelector, "--get-url", "--no-playlist", url],
-      { timeout: 30000 }
+      { timeout: 60000 }
     );
 
     // yt-dlp may output two lines (video + audio) when merging; use first (direct stream)
@@ -241,7 +241,7 @@ router.get("/youtube/download", async (req, res) => {
     const { stdout } = await execFileAsync(
       YT_DLP,
       ["-f", formatSelector, "--get-url", "--no-playlist", "--no-warnings", url],
-      { timeout: 30000 }
+      { timeout: 600000 }
     );
     rawUrls = stdout.trim().split("\n").filter(Boolean);
   } catch (err) {
