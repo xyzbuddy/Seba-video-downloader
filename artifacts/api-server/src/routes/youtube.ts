@@ -11,6 +11,23 @@ const execFileAsync = promisify(execFile);
 // process.cwd() changes in production (workspace root), __dirname does not.
 const YT_DLP = path.join(__dirname, "..", "yt-dlp");
 
+// On startup, self-update yt-dlp so production always has the latest version.
+// The binary committed to git may lag behind if Replit's deployment caches it
+// or if the production container pre-dates the latest commit.
+// We fire-and-forget the update — the server starts immediately; the updated
+// binary takes effect on the next yt-dlp call (usually < 5s after boot).
+(async () => {
+  try {
+    const { stdout: vBefore } = await execFileAsync(YT_DLP, ["--version"]);
+    console.info(`[youtube] yt-dlp version before update: ${vBefore.trim()}`);
+    await execFileAsync(YT_DLP, ["-U", "--quiet"], { timeout: 60000 });
+    const { stdout: vAfter } = await execFileAsync(YT_DLP, ["--version"]);
+    console.info(`[youtube] yt-dlp version after update: ${vAfter.trim()}`);
+  } catch (err) {
+    console.warn("[youtube] yt-dlp self-update skipped:", (err as Error).message?.slice(0, 200));
+  }
+})();
+
 // Common extra flags added to every yt-dlp invocation.
 // --extractor-args youtube:player_client=android_vr
 //   The android_vr client bypasses YouTube's web-endpoint IP bans
