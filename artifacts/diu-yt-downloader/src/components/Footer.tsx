@@ -38,7 +38,7 @@ export default function Footer() {
         </p>
 
         <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-2 text-sm text-gray-500 dark:text-gray-400">
-          <span>Developed with ❤️ by</span>
+          <span>Developed with by 😍</span>
           <a
             href="https://github.com/xyzbuddy"
             target="_blank"
