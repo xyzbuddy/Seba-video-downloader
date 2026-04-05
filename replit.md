@@ -55,15 +55,28 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+Express 5 API server on port 8080. Routes live in `src/routes/`.
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
+- Entry: `src/index.ts` — reads `PORT`, resolves ffmpeg path via `which ffmpeg` at startup
 - App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+- `pnpm --filter @workspace/api-server run dev` — build + start
+- `pnpm --filter @workspace/api-server run build` — esbuild bundle (`dist/index.mjs`)
+
+#### Download Routes
+
+**YouTube** (`src/routes/youtube.ts`):
+- `GET /api/youtube/info?url=` — runs `yt-dlp --dump-json`, returns title/thumbnail/formats
+- `GET /api/youtube/download?url=&formatId=&quality=` — if yt-dlp returns 1 URL (pre-merged MP4), proxies directly via Node `https.get` (fast). If 2 URLs (DASH), merges with ffmpeg.
+- yt-dlp binary: `artifacts/api-server/yt-dlp` (2026.03.17)
+- ffmpeg: resolved dynamically via `which ffmpeg` (Nix store path)
+
+**Instagram / Facebook / TikTok** (`src/routes/media.ts`):
+- `GET /api/media/info?url=` — detects platform, returns title/thumbnail/downloadUrl/formats
+- `GET /api/media/download?url=&formatId=&quality=&title=` — streams video to client
+- `GET /api/detect?url=` — detect platform from URL
+- **Instagram**: `fetchInstagramViaSnapSave()` — POSTs to `snapsave.app/action.php`, executes obfuscated JS in Node `vm` sandbox, extracts `d.rapidcdn.app/thumb` and `d.rapidcdn.app/v2` URLs
+- **TikTok**: TikWM API (`https://www.tikwm.com/api/?url=...&hd=1`)
+- **Facebook**: `yt-dlp --dump-json`
 
 ### `lib/db` (`@workspace/db`)
 

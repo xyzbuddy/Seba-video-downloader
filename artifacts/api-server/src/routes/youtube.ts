@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { execFile, execFileSync, spawn } from "child_process";
 import { promisify } from "util";
 import path from "path";
+import https from "https";
+import http from "http";
 
 const execFileAsync = promisify(execFile);
 
@@ -233,8 +235,14 @@ router.get("/youtube/download", async (req, res) => {
 
   const height = formatId.replace("height_", "");
 
-  // Prefer mp4/m4a DASH pair so ffmpeg gets natively compatible streams
-  const formatSelector = `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]`;
+  // Try pre-merged MP4 first (no ffmpeg needed) — falls back to DASH pair.
+  // Pre-merged formats (itag 18 at 360p, etc.) exist for lower qualities and
+  // can be streamed directly, skipping the ffmpeg merge step entirely.
+  const formatSelector =
+    `best[height<=${height}][ext=mp4][acodec!=none][vcodec!=none]` +
+    `/bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]` +
+    `/bestvideo[height<=${height}]+bestaudio` +
+    `/best[height<=${height}]`;
 
   // Build a safe filename
   const safeName = (title || "video")
@@ -244,7 +252,7 @@ router.get("/youtube/download", async (req, res) => {
     .slice(0, 80);
   const filename = `${safeName}_${quality}.mp4`;
 
-  // --- Phase 1: resolve direct CDN stream URLs ---
+  // --- Phase 1: resolve direct CDN stream URL(s) ---
   let rawUrls: string[];
   try {
     const { stdout } = await execFileAsync(
@@ -264,8 +272,44 @@ router.get("/youtube/download", async (req, res) => {
     return;
   }
 
-  // --- Phase 2: stream via ffmpeg in real-time ---
-  // Build ffmpeg args: one -i per URL (video, then audio if present)
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Type", "video/mp4");
+
+  // --- Phase 2a: single URL = pre-merged stream — proxy directly, no ffmpeg ---
+  if (rawUrls.length === 1) {
+    req.log.info("YouTube download: pre-merged stream, proxying directly");
+    const videoUrl = rawUrls[0];
+    const proto = videoUrl.startsWith("https") ? https : http;
+    const proxyReq = proto.get(
+      videoUrl,
+      {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          Referer: "https://www.youtube.com/",
+          "Accept-Encoding": "identity",
+        },
+      },
+      (upstream) => {
+        if (upstream.headers["content-length"]) {
+          res.setHeader("Content-Length", upstream.headers["content-length"]);
+        }
+        upstream.pipe(res);
+        upstream.on("error", (err: Error) => {
+          req.log.error({ err }, "YouTube proxy stream error");
+          if (!res.headersSent) res.status(500).json({ error: "STREAM_FAILED", message: "Streaming failed" });
+        });
+      }
+    );
+    proxyReq.on("error", (err: Error) => {
+      req.log.error({ err }, "YouTube proxy request error");
+      if (!res.headersSent) res.status(500).json({ error: "STREAM_FAILED", message: "Could not connect to CDN" });
+    });
+    req.on("close", () => proxyReq.destroy());
+    return;
+  }
+
+  // --- Phase 2b: two URLs = DASH (video + audio) — merge with ffmpeg ---
+  req.log.info("YouTube download: DASH streams, merging with ffmpeg");
   const ffmpegArgs: string[] = [];
   for (const u of rawUrls) {
     ffmpegArgs.push("-i", u);
@@ -286,9 +330,6 @@ router.get("/youtube/download", async (req, res) => {
     clientGone = true;
     if (!ffmpegProcess.killed) ffmpegProcess.kill();
   });
-
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.setHeader("Content-Type", "video/mp4");
 
   ffmpegProcess.stdout.pipe(res);
 

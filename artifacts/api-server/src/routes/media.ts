@@ -4,6 +4,8 @@ import { promisify } from "util";
 import path from "path";
 import https from "https";
 import http from "http";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
 
 const execFileAsync = promisify(execFile);
 const YT_DLP = path.join(process.cwd(), "yt-dlp");
@@ -71,45 +73,79 @@ function proxyStream(directUrl: string, res: any, req: any) {
   });
 }
 
-// Fetch Instagram video info via TikWM API
-async function fetchInstagramViaTikwm(url: string): Promise<{
+// Fetch Instagram video info via SnapSave API.
+// SnapSave returns obfuscated JavaScript that decodes into HTML containing
+// rapidcdn.app URLs for the thumbnail and video. We run it in a Node VM sandbox
+// to extract those URLs without touching the DOM.
+async function fetchInstagramViaSnapSave(url: string): Promise<{
   downloadUrl: string;
   thumbnail: string;
   title: string;
   duration: number;
   author: string;
 }> {
-  const tikUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`;
-  const response = await fetch(tikUrl, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "application/json",
-    },
-  });
-  const data = (await response.json()) as {
-    code: number;
-    msg: string;
-    data?: {
-      title: string;
-      cover: string;
-      duration: number;
-      play: string;
-      author: { nickname: string };
-      size: number;
-    };
-  };
+  const vm = require("vm") as typeof import("vm");
 
-  if (data.code !== 0 || !data.data) {
-    throw new Error(data.msg || "TikWM API returned an error");
+  const body = new URLSearchParams({ url }).toString();
+  const response = await fetch("https://snapsave.app/action.php", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Referer: "https://snapsave.app/",
+      Origin: "https://snapsave.app",
+      "X-Requested-With": "XMLHttpRequest",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    throw new Error(`SnapSave request failed: ${response.status}`);
   }
 
+  const rawJs = await response.text();
+  if (!rawJs || rawJs.trim().startsWith("<!")) {
+    throw new Error("SnapSave returned non-JS response");
+  }
+
+  // Execute the obfuscated JS in a sandboxed context
+  let decodedHtml = "";
+  const ctx = {
+    eval: (code: string) => {
+      decodedHtml = code;
+    },
+    decodeURIComponent,
+    escape,
+    String,
+    Math,
+    RegExp,
+  };
+  vm.runInNewContext(rawJs, ctx, { timeout: 5000 });
+
+  if (!decodedHtml) {
+    throw new Error("SnapSave JS did not produce any decoded output");
+  }
+
+  // Extract rapidcdn.app URLs for thumbnail and video — stop at quote/space/backslash
+  const allLinks = decodedHtml.match(/https:\/\/d\.rapidcdn\.app\/[^\s"'<>\\]+/g) ?? [];
+  const thumbUrl = allLinks.find((l) => l.includes("/thumb")) ?? "";
+  const videoUrl = allLinks.find((l) => l.includes("/v2"));
+
+  if (!videoUrl) {
+    throw new Error("Could not extract video URL from SnapSave response");
+  }
+
+  // Try to pull a title from the decoded HTML (img alt or any text snippet)
+  const altMatch = decodedHtml.match(/alt="([^"]{5,120})"/);
+  const title = altMatch ? altMatch[1] : "Instagram Reel";
+
   return {
-    downloadUrl: data.data.play,
-    thumbnail: data.data.cover,
-    title: data.data.title || "Instagram Video",
-    duration: data.data.duration || 0,
-    author: data.data.author?.nickname || "Instagram",
+    downloadUrl: videoUrl,
+    thumbnail: thumbUrl,
+    title,
+    duration: 0,
+    author: "Instagram",
   };
 }
 
@@ -186,11 +222,11 @@ router.get("/media/info", async (req, res) => {
     return;
   }
 
-  // ── Instagram — TikWM API ───────────────────────────────────────────────
+  // ── Instagram — SnapSave API ─────────────────────────────────────────────
   if (platform === "instagram") {
     const cleanUrl = cleanInstagramUrl(url);
     try {
-      const igData = await fetchInstagramViaTikwm(cleanUrl);
+      const igData = await fetchInstagramViaSnapSave(cleanUrl);
       res.json({
         platform: "instagram",
         title: igData.title.replace(/\n/g, " ").slice(0, 120),
@@ -200,14 +236,14 @@ router.get("/media/info", async (req, res) => {
         downloadUrl: igData.downloadUrl,
         formats: [
           {
-            formatId: "tikwm",
+            formatId: "snapsave",
             quality: "Best",
             label: "Best Quality (MP4)",
           },
         ],
       });
     } catch (err) {
-      req.log?.error?.({ err }, "TikWM Instagram fetch failed");
+      req.log?.error?.({ err }, "SnapSave Instagram fetch failed");
       res
         .status(500)
         .json({ error: "Could not fetch this video. Make sure the account is public and the link is valid." });
@@ -332,14 +368,14 @@ router.get("/media/download", async (req, res) => {
     return;
   }
 
-  // ── Instagram — TikWM API ────────────────────────────────────────────────
+  // ── Instagram — SnapSave API ──────────────────────────────────────────────
   if (platform === "instagram") {
     const cleanUrl = cleanInstagramUrl(url);
     try {
-      const igData = await fetchInstagramViaTikwm(cleanUrl);
+      const igData = await fetchInstagramViaSnapSave(cleanUrl);
       proxyStream(igData.downloadUrl, res, req);
     } catch (err) {
-      req.log?.error?.({ err }, "Instagram TikWM download failed");
+      req.log?.error?.({ err }, "SnapSave Instagram download failed");
       if (!res.headersSent)
         res.status(500).json({ error: "Could not fetch this video. Make sure the account is public and the link is valid." });
     }
