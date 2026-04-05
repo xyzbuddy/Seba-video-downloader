@@ -18,6 +18,7 @@ function resolveFfmpegBin(): string {
   }
 }
 const FFMPEG_BIN = resolveFfmpegBin();
+console.info(`[youtube] ffmpeg resolved to: ${FFMPEG_BIN}`);
 
 const router: IRouter = Router();
 
