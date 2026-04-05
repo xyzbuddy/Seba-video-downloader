@@ -8,7 +8,9 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 
 const execFileAsync = promisify(execFile);
-const YT_DLP = path.join(process.cwd(), "yt-dlp");
+// Resolve yt-dlp relative to the bundle file (dist/index.mjs → ../yt-dlp)
+// process.cwd() changes in production (workspace root), __dirname does not.
+const YT_DLP = path.join(__dirname, "..", "yt-dlp");
 
 const router: IRouter = Router();
 

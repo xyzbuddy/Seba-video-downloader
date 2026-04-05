@@ -7,8 +7,9 @@ import http from "http";
 
 const execFileAsync = promisify(execFile);
 
-// Use the bundled yt-dlp binary (artifacts/api-server/yt-dlp)
-const YT_DLP = path.join(process.cwd(), "yt-dlp");
+// Resolve yt-dlp relative to the bundle file (dist/index.mjs → ../yt-dlp)
+// process.cwd() changes in production (workspace root), __dirname does not.
+const YT_DLP = path.join(__dirname, "..", "yt-dlp");
 
 // Resolve ffmpeg dynamically — Nix store hashes change across system updates
 function resolveFfmpegBin(): string {
