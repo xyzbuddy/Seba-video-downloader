@@ -11,6 +11,12 @@ const execFileAsync = promisify(execFile);
 // process.cwd() changes in production (workspace root), __dirname does not.
 const YT_DLP = path.join(__dirname, "..", "yt-dlp");
 
+// Common extra flags added to every yt-dlp invocation.
+// --js-runtimes node  — lets yt-dlp use Node.js to solve YouTube's JS challenges
+//                       without this, production servers get "Sign in to confirm
+//                       you're not a bot" because no JS runtime is found.
+const YT_DLP_BASE_ARGS = ["--js-runtimes", "node"];
+
 // Resolve ffmpeg dynamically — Nix store hashes change across system updates
 function resolveFfmpegBin(): string {
   try {
@@ -65,7 +71,7 @@ router.get("/youtube/info", async (req, res) => {
   try {
     const { stdout } = await execFileAsync(
       YT_DLP,
-      ["--dump-json", "--no-playlist", url],
+      [...YT_DLP_BASE_ARGS, "--dump-json", "--no-playlist", url],
       { timeout: 60000 }
     );
 
@@ -186,7 +192,7 @@ router.get("/youtube/download-url", async (req, res) => {
 
     const { stdout } = await execFileAsync(
       YT_DLP,
-      ["-f", formatSelector, "--get-url", "--no-playlist", url],
+      [...YT_DLP_BASE_ARGS, "-f", formatSelector, "--get-url", "--no-playlist", url],
       { timeout: 60000 }
     );
 
@@ -261,7 +267,7 @@ router.get("/youtube/download", async (req, res) => {
   try {
     const { stdout } = await execFileAsync(
       YT_DLP,
-      ["-f", formatSelector, "--get-url", "--no-playlist", "--no-warnings", url],
+      [...YT_DLP_BASE_ARGS, "-f", formatSelector, "--get-url", "--no-playlist", "--no-warnings", url],
       { timeout: 600000 }
     );
     rawUrls = stdout.trim().split("\n").filter(Boolean);

@@ -46,19 +46,48 @@ function cleanInstagramUrl(url: string): string {
   }
 }
 
-function proxyStream(directUrl: string, res: any, req: any) {
-  const proto = directUrl.startsWith("https") ? https : http;
-  const reqObj = proto.get(
-    directUrl,
-    {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Referer: "https://www.tiktok.com/",
-        Accept: "*/*",
-      },
-    },
-    (upstream) => {
+// Proxy a video stream from a CDN URL to the HTTP response.
+// - Follows up to 5 HTTP redirects (CDN URLs sometimes redirect).
+// - Checks the upstream status code before piping to avoid sending
+//   a 403/404 error body as if it were a valid video file.
+// - Accepts an optional referer to send the correct platform origin.
+function proxyStream(directUrl: string, res: any, req: any, referer = "") {
+  const MAX_REDIRECTS = 5;
+
+  function doRequest(url: string, redirectsLeft: number) {
+    const proto = url.startsWith("https") ? https : http;
+    const headers: Record<string, string> = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "*/*",
+    };
+    if (referer) headers["Referer"] = referer;
+
+    const reqObj = proto.get(url, { headers }, (upstream) => {
+      // Follow redirects
+      const status = upstream.statusCode ?? 0;
+      if (status >= 300 && status < 400) {
+        const location = upstream.headers.location;
+        upstream.destroy();
+        if (location && redirectsLeft > 0) {
+          // Resolve relative redirects
+          const next = location.startsWith("http") ? location : new URL(location, url).toString();
+          doRequest(next, redirectsLeft - 1);
+          return;
+        }
+        req.log?.error?.({ status, location }, "Too many redirects or missing Location");
+        if (!res.headersSent) res.status(502).json({ error: "Too many redirects from CDN" });
+        return;
+      }
+
+      // Reject non-2xx responses
+      if (status < 200 || status >= 300) {
+        req.log?.error?.({ status }, "CDN returned non-2xx status");
+        upstream.destroy();
+        if (!res.headersSent) res.status(502).json({ error: `CDN error: HTTP ${status}` });
+        return;
+      }
+
       if (upstream.headers["content-length"]) {
         res.setHeader("Content-Length", upstream.headers["content-length"]);
       }
@@ -67,12 +96,16 @@ function proxyStream(directUrl: string, res: any, req: any) {
         req.log?.error?.({ err }, "Upstream stream error");
         if (!res.headersSent) res.status(500).json({ error: "Stream failed" });
       });
-    }
-  );
-  reqObj.on("error", (err: Error) => {
-    req.log?.error?.({ err }, "Proxy request error");
-    if (!res.headersSent) res.status(500).json({ error: "Failed to connect to video server" });
-  });
+    });
+
+    reqObj.on("error", (err: Error) => {
+      req.log?.error?.({ err }, "Proxy request error");
+      if (!res.headersSent) res.status(500).json({ error: "Failed to connect to video server" });
+    });
+    req.on("close", () => reqObj.destroy());
+  }
+
+  doRequest(directUrl, MAX_REDIRECTS);
 }
 
 // Fetch Instagram video info via SnapSave API.
@@ -362,7 +395,7 @@ router.get("/media/download", async (req, res) => {
 
       const useNoWatermark = formatId === "no_watermark" || noWatermark !== "false";
       const directUrl = useNoWatermark ? data.data.play : data.data.wmplay;
-      proxyStream(directUrl, res, req);
+      proxyStream(directUrl, res, req, "https://www.tiktok.com/");
     } catch (err) {
       req.log?.error?.({ err }, "TikTok download error");
       if (!res.headersSent) res.status(500).json({ error: "Download failed" });
@@ -375,7 +408,7 @@ router.get("/media/download", async (req, res) => {
     const cleanUrl = cleanInstagramUrl(url);
     try {
       const igData = await fetchInstagramViaSnapSave(cleanUrl);
-      proxyStream(igData.downloadUrl, res, req);
+      proxyStream(igData.downloadUrl, res, req, "https://snapsave.app/");
     } catch (err) {
       req.log?.error?.({ err }, "SnapSave Instagram download failed");
       if (!res.headersSent)
@@ -407,7 +440,7 @@ router.get("/media/download", async (req, res) => {
       res.status(500).json({ error: "No download URL found" });
       return;
     }
-    proxyStream(directUrl, res, req);
+    proxyStream(directUrl, res, req, "https://www.facebook.com/");
   } catch (err) {
     req.log?.error?.({ err }, "Facebook download failed");
     if (!res.headersSent) res.status(500).json({ error: "Failed to download video" });
