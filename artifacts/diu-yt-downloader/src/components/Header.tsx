@@ -1,24 +1,50 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Sun, Moon, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/contexts/ThemeContext";
 
 const NAV_ITEMS = [
+  { path: "/", label: "Home", color: "#22c55e", exact: true },
   { path: "/youtube", label: "YouTube", color: "#FF0000" },
   { path: "/facebook", label: "Facebook", color: "#1877F2" },
   { path: "/instagram", label: "Instagram", color: "#C13584" },
   { path: "/tiktok", label: "TikTok", color: "#010101" },
 ];
 
+function PillToggle() {
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "dark";
+
+  return (
+    <button
+      onClick={toggleTheme}
+      aria-label="Toggle theme"
+      className="relative flex items-center w-12 h-6 rounded-full transition-colors duration-300 focus:outline-none flex-shrink-0"
+      style={{ backgroundColor: isDark ? "#1f2937" : "#22c55e" }}
+    >
+      <motion.span
+        layout
+        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        className="absolute w-5 h-5 rounded-full bg-white shadow-md"
+        style={{ left: isDark ? "2px" : "calc(100% - 22px)" }}
+      />
+    </button>
+  );
+}
+
 export default function Header() {
   const [location, navigate] = useLocation();
-  const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleNav = (path: string) => {
     navigate(path);
     setMenuOpen(false);
+  };
+
+  const isActive = (item: typeof NAV_ITEMS[number]) => {
+    if (item.exact) return location === item.path;
+    return location.startsWith(item.path);
   };
 
   return (
@@ -39,33 +65,27 @@ export default function Header() {
 
           <nav className="hidden md:flex items-center gap-1">
             {NAV_ITEMS.map((item) => {
-              const isActive = location.startsWith(item.path);
+              const active = isActive(item);
               return (
                 <button
                   key={item.path}
                   onClick={() => handleNav(item.path)}
                   className="relative px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150"
-                  style={isActive ? { backgroundColor: item.color, color: "#fff" } : {}}
+                  style={active ? { backgroundColor: item.color, color: "#fff" } : {}}
                 >
-                  {!isActive && (
+                  {!active && (
                     <span className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                       {item.label}
                     </span>
                   )}
-                  {isActive && item.label}
+                  {active && item.label}
                 </button>
               );
             })}
           </nav>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Toggle theme"
-            >
-              {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
+          <div className="flex items-center gap-3">
+            <PillToggle />
             <button
               className="md:hidden p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               onClick={() => setMenuOpen((v) => !v)}
@@ -87,18 +107,18 @@ export default function Header() {
           >
             <div className="px-4 py-2 flex flex-col gap-1">
               {NAV_ITEMS.map((item) => {
-                const isActive = location.startsWith(item.path);
+                const active = isActive(item);
                 return (
                   <button
                     key={item.path}
                     onClick={() => handleNav(item.path)}
                     className="w-full text-left px-4 py-3 rounded-lg text-sm font-semibold transition-all"
-                    style={isActive ? { backgroundColor: item.color, color: "#fff" } : {}}
+                    style={active ? { backgroundColor: item.color, color: "#fff" } : {}}
                   >
-                    {!isActive && (
+                    {!active && (
                       <span className="text-gray-600 dark:text-gray-300">{item.label}</span>
                     )}
-                    {isActive && item.label}
+                    {active && item.label}
                   </button>
                 );
               })}
