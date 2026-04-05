@@ -20,12 +20,23 @@ export function detectPlatform(url: string): Platform | null {
   return null;
 }
 
-// Strip query params from Instagram URLs — tracking params confuse yt-dlp
+// Strip only known tracking params from Instagram URLs — keep the rest intact
+// so TikWM can still parse the reel/post shortcode correctly.
+const TRACKING_PARAMS = new Set([
+  "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+  "fbclid", "igsh", "igshid", "ref",
+]);
+
 function cleanInstagramUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    // Keep only the canonical path (no query string, no hash)
-    return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/$/, "")}/`;
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (TRACKING_PARAMS.has(key)) parsed.searchParams.delete(key);
+    }
+    // Remove trailing slash from path for consistency
+    parsed.pathname = parsed.pathname.replace(/\/$/, "");
+    parsed.hash = "";
+    return parsed.toString();
   } catch {
     return url;
   }

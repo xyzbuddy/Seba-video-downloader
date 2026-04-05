@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { execFile, spawn } from "child_process";
+import { execFile, execFileSync, spawn } from "child_process";
 import { promisify } from "util";
 import path from "path";
 
@@ -8,8 +8,16 @@ const execFileAsync = promisify(execFile);
 // Use the bundled yt-dlp binary (artifacts/api-server/yt-dlp)
 const YT_DLP = path.join(process.cwd(), "yt-dlp");
 
-// ffmpeg ships with the Replit runtime
-const FFMPEG_DIR = "/nix/store/q5qbngdpv0n9zgh42d3ssprj31cf779j-replit-runtime-path/bin";
+// Resolve ffmpeg dynamically — Nix store hashes change across system updates
+function resolveFfmpegBin(): string {
+  try {
+    return execFileSync("which", ["ffmpeg"], { encoding: "utf8" }).trim();
+  } catch {
+    // Fallback to known Replit runtime path
+    return "/nix/store/hm5p1jkyrqp2jinklggxv8q7qg1glf03-replit-runtime-path/bin/ffmpeg";
+  }
+}
+const FFMPEG_BIN = resolveFfmpegBin();
 
 const router: IRouter = Router();
 
@@ -270,8 +278,7 @@ router.get("/youtube/download", async (req, res) => {
     "pipe:1"
   );
 
-  const ffmpegBin = path.join(FFMPEG_DIR, "ffmpeg");
-  const ffmpegProcess = spawn(ffmpegBin, ffmpegArgs);
+  const ffmpegProcess = spawn(FFMPEG_BIN, ffmpegArgs);
 
   let clientGone = false;
   req.on("close", () => {
