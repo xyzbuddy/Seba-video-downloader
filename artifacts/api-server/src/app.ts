@@ -29,6 +29,21 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.use("/api", router);
+
+// Serve frontend static files
+const frontendPath = path.resolve(__dirname, "../../diu-yt-downloader/dist/public");
+app.use(express.static(frontendPath));
+
+// Catch-all route to serve index.html for client-side routing
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
+});
 
 export default app;
