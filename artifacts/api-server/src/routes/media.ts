@@ -163,7 +163,7 @@ async function fetchInstagramViaSnapSave(url: string): Promise<{
   }
 
   // Extract rapidcdn.app URLs for thumbnail and video — stop at quote/space/backslash
-  const allLinks = decodedHtml.match(/https:\/\/d\.rapidcdn\.app\/[^\s"'<>\\]+/g) ?? [];
+  const allLinks: string[] = decodedHtml.match(/https:\/\/d\.rapidcdn\.app\/[^\s"'<>\\]+/g) ?? [];
   const thumbUrl = allLinks.find((l) => l.includes("/thumb")) ?? "";
   const videoUrl = allLinks.find((l) => l.includes("/v2"));
 
