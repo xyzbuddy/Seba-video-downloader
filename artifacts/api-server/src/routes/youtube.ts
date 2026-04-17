@@ -270,64 +270,69 @@ router.get("/youtube/download", async (req, res) => {
     const bestAudio = audioStreams[0];
 
     if (bestVideo?.url && bestAudio?.url) {
-      // Test accessibility of stream URLs (quick 2KB head request)
-      let streamsAccessible = false;
-      try {
-        const testRes = await fetch(bestVideo.url, {
-          method: "HEAD",
-          signal: AbortSignal.timeout(4000),
-        });
-        streamsAccessible = testRes.status >= 200 && testRes.status < 400;
-      } catch {}
+      // Attempt direct ffmpeg mux — YouTube CDN rejects HEAD but allows GET
+      // If CDN blocks it, ffmpeg will produce no output and we fall through
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", "video/mp4");
 
-      if (streamsAccessible) {
-        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-        res.setHeader("Content-Type", "video/mp4");
+      const ff = spawn(FFMPEG_BIN, [
+        "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "-i", bestVideo.url,
+        "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "-i", bestAudio.url,
+        "-c", "copy",
+        "-f", "mp4",
+        "-movflags", "frag_keyframe+empty_moov+faststart",
+        "pipe:1",
+      ]);
 
-        const ff = spawn(FFMPEG_BIN, [
-          "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "-i", bestVideo.url,
-          "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "-i", bestAudio.url,
-          "-c", "copy",
-          "-f", "mp4",
-          "-movflags", "frag_keyframe+empty_moov+faststart",
-          "pipe:1",
-        ]);
-
+      const ffDone = await new Promise<boolean>((resolve) => {
+        let gotData = false;
+        ff.stdout.once("data", () => { gotData = true; });
+        ff.stdout.pipe(res);
         let clientGone = false;
         req.on("close", () => { clientGone = true; if (!ff.killed) ff.kill(); });
-        ff.stdout.pipe(res);
-        ff.on("error", () => { if (!res.headersSent) res.status(500).end(); });
-        return;
-      }
+        ff.on("error", () => resolve(false));
+        ff.on("close", (code) => resolve(gotData || code === 0));
+        setTimeout(() => { if (!gotData) { ff.kill(); resolve(false); } }, 12000);
+      });
+
+      if (ffDone) return;
+      req.log?.info?.({}, "ffmpeg got no data from Invidious URLs, falling through to pre-merged");
     }
 
-    // Fallback: pre-merged stream (720p/360p)
+    // Fallback: pre-merged stream (720p/360p) — no HEAD check, just try GET
     const preMerged = (invData.formatStreams || [])
       .filter(f => f.url)
       .sort((a, b) => {
-        // Prefer closest to target height
         const aH = getHeight(a), bH = getHeight(b);
-        return Math.abs(bH - targetHeight) - Math.abs(aH - targetHeight);
+        return Math.abs(aH - targetHeight) - Math.abs(bH - targetHeight);
       });
 
     for (const stream of preMerged) {
-      try {
-        const testRes = await fetch(stream.url, {
-          method: "HEAD",
-          signal: AbortSignal.timeout(4000),
-        });
-        if (testRes.status >= 200 && testRes.status < 400) {
-          res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-          res.setHeader("Content-Type", "video/mp4");
-          if (testRes.headers.get("content-length")) {
-            res.setHeader("Content-Length", testRes.headers.get("content-length")!);
+      const worked = await new Promise<boolean>((resolve) => {
+        const proto = stream.url.startsWith("https") ? https : http;
+        const r = proto.get(stream.url, {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        }, (upstream) => {
+          if ((upstream.statusCode ?? 0) < 200 || (upstream.statusCode ?? 0) >= 300) {
+            upstream.destroy();
+            resolve(false);
+            return;
           }
-          proxyStream(stream.url, res, req);
-          return;
-        }
-      } catch {}
+          if (!res.headersSent) {
+            res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+            res.setHeader("Content-Type", "video/mp4");
+            if (upstream.headers["content-length"]) res.setHeader("Content-Length", upstream.headers["content-length"]);
+          }
+          upstream.pipe(res);
+          upstream.on("error", () => resolve(false));
+          upstream.on("end", () => resolve(true));
+        });
+        r.on("error", () => resolve(false));
+        req.on("close", () => r.destroy());
+      });
+      if (worked) return;
     }
   }
 
