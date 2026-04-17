@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "postinstall": "node scripts/download-ytdlp.js",
     "build": "pnpm run typecheck && pnpm --filter @workspace/api-server --filter @workspace/diu-yt-downloader run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
