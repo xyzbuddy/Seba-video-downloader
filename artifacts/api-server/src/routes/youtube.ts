@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { execFileSync, spawn } from "child_process";
 import https from "https";
 import http from "http";
+import ffmpegStatic from "ffmpeg-static";
 
 // ── Innertube API ─────────────────────────────────────────────────────────────
 // YouTube's production servers block yt-dlp from GCP IPs (HTTP 429).
@@ -107,6 +108,9 @@ function extractVideoId(url: string): string | null {
 
 // ── ffmpeg ────────────────────────────────────────────────────────────────────
 function resolveFfmpegBin(): string {
+  // Use ffmpeg-static npm package for cross-environment compatibility
+  if (ffmpegStatic) return ffmpegStatic;
+  
   try {
     return execFileSync("which", ["ffmpeg"], { encoding: "utf8" }).trim();
   } catch {
