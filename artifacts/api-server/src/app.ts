@@ -42,8 +42,12 @@ const frontendPath = path.resolve(__dirname, "../../diu-yt-downloader/dist/publi
 app.use(express.static(frontendPath));
 
 // Catch-all route to serve index.html for client-side routing
-app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
+app.use((req, res, next) => {
+  if (req.method === "GET") {
+    res.sendFile(path.join(frontendPath, "index.html"));
+  } else {
+    next();
+  }
 });
 
 export default app;
