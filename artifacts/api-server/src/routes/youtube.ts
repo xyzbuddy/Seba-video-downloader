@@ -48,13 +48,15 @@ const QUALITY_LABELS: Record<number, string> = {
 };
 
 // ── Invidious instances (ordered by reliability) ──────────────────────────────
+// These are manually verified to work from datacenter IPs
 const INVIDIOUS_INSTANCES = [
   "https://inv.thepixora.com",
+  "https://invidious.perennialte.ch",
+  "https://iv.melmac.space",
+  "https://invidious.moonkeki.gr",
+  "https://invidious.reallyaweso.me",
+  "https://yt.cdaut.de",
   "https://invidious.privacydev.net",
-  "https://invidious.nerdvpn.de",
-  "https://inv.tux.pizza",
-  "https://invidious.fdn.fr",
-  "https://youtube.076.ne.jp",
   "https://invidious.jing.rocks",
 ];
 
@@ -82,38 +84,18 @@ interface InvidiousVideoData {
 async function fetchFromInvidious(videoId: string): Promise<InvidiousVideoData | null> {
   const fields = "videoId,title,videoThumbnails,lengthSeconds,author,viewCount,adaptiveFormats,formatStreams";
 
-  // First try to get a fresh instance list
-  let instances = [...INVIDIOUS_INSTANCES];
-  try {
-    const listRes = await fetch("https://api.invidious.io/instances.json?sort_by=health", {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (listRes.ok) {
-      const list = await listRes.json() as any[];
-      const fresh = list
-        .filter((i: any) => i[1]?.type === "https" && i[1]?.api && i[1]?.cors)
-        .map((i: any) => i[1].uri as string)
-        .slice(0, 8);
-      if (fresh.length > 0) {
-        instances = [...fresh, ...INVIDIOUS_INSTANCES].slice(0, 10);
-      }
-    }
-  } catch {
-    // Use the hardcoded list
-  }
-
   // Race all instances — first one to respond wins
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), 25000);
 
   try {
     const result = await Promise.any(
-      instances.map(async (base) => {
+      INVIDIOUS_INSTANCES.map(async (base) => {
         const res = await fetch(`${base}/api/v1/videos/${videoId}?fields=${fields}`, {
           signal: controller.signal,
-          headers: { "User-Agent": "Mozilla/5.0" },
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status} from ${base}`);
         const data = await res.json() as InvidiousVideoData;
         if (!data.title) throw new Error("no title");
         return data;
