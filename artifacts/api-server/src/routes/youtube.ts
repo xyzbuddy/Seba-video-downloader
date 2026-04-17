@@ -40,6 +40,38 @@ const QUALITY_LABELS: Record<number, string> = {
 
 const router: IRouter = Router();
 
+// ── Invidious API Fallback ──────────────────────────────────────────────────
+async function fetchInvidious(videoId: string) {
+  try {
+    const listReq = await fetch("https://api.invidious.io/instances.json?sort_by=health");
+    if (!listReq.ok) return null;
+    const list = await listReq.json();
+    const urls = (list as any[])
+      .filter(i => i[1].type === "https" && i[1].api)
+      .map(i => i[1].uri)
+      .slice(0, 10);
+      
+    if (urls.length === 0) return null;
+
+    const controller = new AbortController();
+    const result = await Promise.any(
+      urls.map(async (url) => {
+        const res = await fetch(`${url}/api/v1/videos/${videoId}?fields=videoId,title,videoThumbnails,lengthSeconds,author,viewCount,adaptiveFormats,formatStreams`, {
+          signal: controller.signal
+        });
+        if (!res.ok) throw new Error("bad status");
+        const data = await res.json();
+        if (!data.title || (!data.adaptiveFormats && !data.formatStreams)) throw new Error("missing data");
+        return data; // Return full info
+      })
+    );
+    controller.abort();
+    return result;
+  } catch (e) {
+    return null; // All failed
+  }
+}
+
 // ── GET /youtube/info ─────────────────────────────────────────────────────────
 router.get("/youtube/info", async (req, res) => {
   const { url } = req.query as { url?: string };
@@ -53,51 +85,96 @@ router.get("/youtube/info", async (req, res) => {
     return;
   }
 
+  let title = "Video";
+  let thumbnail = "";
+  let channelName = "YouTube";
+  let duration = 0;
+  let viewCount: number | undefined;
+  let rawFormats: any[] = [];
+  let videoId = "";
+  
   try {
+    const parsedUrl = new URL(url);
+    videoId = parsedUrl.searchParams.get("v") || parsedUrl.pathname.split("/").pop() || "";
+  } catch {}
+
+  try {
+    // 1. Fast yt-dlp attempt (8 second timeout to avoid indefinite hanging on Datacenter blocking)
     const { stdout } = await execFileAsync(
       YT_DLP,
       [
         "--dump-json",
         "--no-playlist",
-        "--no-warnings",
         "--extractor-args", "youtube:player_client=android",
         url
       ],
-      { timeout: 35000, maxBuffer: 10 * 1024 * 1024 }
+      { timeout: 8000, maxBuffer: 10 * 1024 * 1024 }
     );
-
     const info = JSON.parse(stdout.trim());
-    const availableHeights = new Set<number>(
-      ((info.formats as any[]) || []).filter((f) => f.height).map((f) => f.height)
-    );
-    const maxHeight = availableHeights.size > 0 ? Math.max(...availableHeights) : 720;
-
-    const formats = QUALITY_HEIGHTS.filter((h) => h <= maxHeight || h === 720).map((h) => ({
-      formatId: `height_${h}`,
-      quality: QUALITY_LABELS[h] || `${h}p`,
-      resolution: `${h}p`,
-      ext: "mp4",
-      hasVideo: true,
-      hasAudio: true,
-    }));
-
-    // Deduplicate formats based on formatId just in case
-    const uniqueFormats = Array.from(new Map(formats.map(item => [item.formatId, item])).values());
-
-    res.json({
-      id: info.id || "unknown",
-      title: (info.title || "Video").replace(/\n/g, " ").slice(0, 120).trim(),
-      thumbnail: info.thumbnail,
-      channelName: info.uploader || info.channel || "YouTube",
-      duration: info.duration ? Number(info.duration) : 0,
-      durationFormatted: formatDuration(info.duration ? Number(info.duration) : 0),
-      viewCount: info.view_count ? Number(info.view_count) : undefined,
-      formats: uniqueFormats,
-    });
+    title = info.title;
+    thumbnail = info.thumbnail;
+    channelName = info.uploader || info.channel;
+    duration = info.duration ? Number(info.duration) : 0;
+    viewCount = info.view_count ? Number(info.view_count) : undefined;
+    rawFormats = info.formats || [];
+    if (!videoId) videoId = info.id;
   } catch (err) {
-    req.log?.error?.({ err }, "yt-dlp YouTube info failed");
-    res.status(500).json({ error: "FETCH_FAILED", message: "Failed to fetch video information. Please try again." });
+    req.log?.info?.({ err: (err as any).message }, "yt-dlp fast attempt failed, falling back to Invidious API");
+    // 2. Invidious Fallback
+    const invData = await fetchInvidious(videoId);
+    if (!invData) {
+      res.status(500).json({ error: "FETCH_FAILED", message: "YouTube IP blocks prevented fetch and proxy rotation failed." });
+      return;
+    }
+    title = invData.title;
+    thumbnail = invData.videoThumbnails?.[0]?.url || "";
+    channelName = invData.author;
+    duration = invData.lengthSeconds;
+    viewCount = invData.viewCount;
+    // Map Invidious formats back to a generic structure for candidate filtering later
+    const adapt = (invData.adaptiveFormats || []).map((f: any) => ({
+      ext: f.type?.includes("mp4") ? "mp4" : (f.type?.includes("webm") ? "webm" : "m4a"),
+      height: parseInt(f.resolution?.replace("p", "") || "0"),
+      vcodec: f.type?.includes("video") || f.resolution ? "vp9" : "none", // Simple mock
+      acodec: f.type?.includes("audio") ? "aac" : "none",
+      url: f.url
+    }));
+    const preMerged = (invData.formatStreams || []).map((f: any) => ({
+      ext: "mp4",
+      height: parseInt(f.resolution?.replace("p", "") || "0"),
+      vcodec: "avc1",
+      acodec: "mp4a",
+      url: f.url
+    }));
+    rawFormats = [...adapt, ...preMerged];
   }
+
+  const availableHeights = new Set<number>(
+    rawFormats.filter((f) => f.height).map((f) => f.height)
+  );
+  const maxHeight = availableHeights.size > 0 ? Math.max(...availableHeights) : 720;
+
+  const formats = QUALITY_HEIGHTS.filter((h) => h <= maxHeight || h === 720).map((h) => ({
+    formatId: `height_${h}`,
+    quality: QUALITY_LABELS[h] || `${h}p`,
+    resolution: `${h}p`,
+    ext: "mp4",
+    hasVideo: true,
+    hasAudio: true,
+  }));
+
+  const uniqueFormats = Array.from(new Map(formats.map(item => [item.formatId, item])).values());
+
+  res.json({
+    id: videoId || "unknown",
+    title: (title || "Video").replace(/\n/g, " ").slice(0, 120).trim(),
+    thumbnail: thumbnail,
+    channelName: channelName || "YouTube",
+    duration: duration,
+    durationFormatted: formatDuration(duration),
+    viewCount: viewCount,
+    formats: uniqueFormats,
+  });
 });
 
 // ── GET /youtube/download ─────────────────────────────────────────────────────
@@ -121,6 +198,13 @@ router.get("/youtube/download", async (req, res) => {
 
   let videoUrl = "";
   let audioUrl = "";
+  let rawFormats: any[] = [];
+
+  let videoId = "";
+  try {
+    const parsedUrl = new URL(url);
+    videoId = parsedUrl.searchParams.get("v") || parsedUrl.pathname.split("/").pop() || "";
+  } catch {}
 
   try {
     const { stdout } = await execFileAsync(
@@ -128,72 +212,84 @@ router.get("/youtube/download", async (req, res) => {
       [
         "--dump-json",
         "--no-playlist",
-        "--no-warnings",
         "--extractor-args", "youtube:player_client=android",
         url
       ],
-      { timeout: 35000, maxBuffer: 10 * 1024 * 1024 }
+      { timeout: 8000, maxBuffer: 10 * 1024 * 1024 }
     );
-    const info = JSON.parse(stdout.trim());
-    const rawFormats = info.formats || [];
-
-    // Filter video candidate
-    const videoCandidates = rawFormats
-      .filter((f: any) => f.vcodec && f.vcodec !== "none" && (f.height || 0) <= height)
-      .sort((a: any, b: any) => {
-        const hDiff = (b.height || 0) - (a.height || 0);
-        if (hDiff !== 0) return hDiff;
-        // Prefer MP4
-        const aMp4 = a.ext === "mp4" ? 1 : 0;
-        const bMp4 = b.ext === "mp4" ? 1 : 0;
-        return bMp4 - aMp4;
-      });
-
-    const bestVideo = videoCandidates[0];
-
-    // Filter audio candidate
-    const audioCandidates = rawFormats
-      .filter((f: any) => f.acodec && f.acodec !== "none" && (!f.vcodec || f.vcodec === "none"))
-      .sort((a: any, b: any) => {
-        // Prefer m4a
-        const aM4a = a.ext === "m4a" ? 1 : 0;
-        const bM4a = b.ext === "m4a" ? 1 : 0;
-        if (bM4a !== aM4a) return bM4a - aM4a;
-        return (b.abr || 0) - (a.abr || 0);
-      });
-
-    const bestAudio = audioCandidates[0];
-
-    if (!bestVideo?.url || !bestAudio?.url) {
-      // Fallback to a single pre-merged stream
-      const combo = rawFormats.find((f: any) => f.url && f.acodec !== "none" && f.vcodec !== "none" && f.ext === "mp4");
-      if (combo?.url) {
-        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-        res.setHeader("Content-Type", "video/mp4");
-
-        const proto = combo.url.startsWith("https") ? https : http;
-        const pr = proto.get(combo.url, { headers: { "User-Agent": "Mozilla/5.0" } }, (upstream) => {
-          upstream.pipe(res);
-          upstream.on("error", (e: Error) => { req.log?.error?.({ e }, "combo stream error"); });
-        });
-        pr.on("error", (e: Error) => { req.log?.error?.({ e }, "combo proxy error"); if (!res.headersSent) res.status(500).json({ error: "STREAM_FAILED" }); });
-        req.on("close", () => pr.destroy());
-        return;
-      }
-
-      res.status(500).json({ error: "NO_STREAM_URL", message: "Could not find stream URLs" });
+    rawFormats = JSON.parse(stdout.trim()).formats || [];
+  } catch (err) {
+    req.log?.info?.({ err: (err as any).message }, "yt-dlp extraction failed in download route, falling back");
+    const invData = await fetchInvidious(videoId);
+    if (!invData) {
+      if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Failed to resolve URLs (IP blocked)" });
       return;
     }
+    
+    // Exact mapping for audio and video picking
+    const adapt = (invData.adaptiveFormats || []).map((f: any) => ({
+      ext: f.type?.includes("mp4") ? "mp4" : (f.type?.includes("webm") ? "webm" : "m4a"),
+      height: f.type?.includes("video") ? parseInt(f.resolution?.replace("p", "") || "0") : 0,
+      vcodec: f.type?.includes("video") ? "on" : "none",
+      acodec: f.type?.includes("audio") ? "on" : "none",
+      url: f.url
+    }));
+    const preMerged = (invData.formatStreams || []).map((f: any) => ({
+      ext: "mp4",
+      height: parseInt(f.resolution?.replace("p", "") || "0"),
+      vcodec: "on",
+      acodec: "on",
+      url: f.url
+    }));
+    rawFormats = [...adapt, ...preMerged];
+  }
 
-    videoUrl = bestVideo.url;
-    audioUrl = bestAudio.url;
-  } catch (err) {
-    req.log?.error?.({ err }, "yt-dlp download-phase payload extraction failed");
-    if (!res.headersSent) res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Failed to resolve URLs" });
+  // Filter video candidate
+  const videoCandidates = rawFormats
+    .filter((f: any) => f.vcodec && f.vcodec !== "none" && (f.height || 0) <= height)
+    .sort((a: any, b: any) => {
+      const hDiff = (b.height || 0) - (a.height || 0);
+      if (hDiff !== 0) return hDiff;
+      const aMp4 = a.ext === "mp4" ? 1 : 0;
+      const bMp4 = b.ext === "mp4" ? 1 : 0;
+      return bMp4 - aMp4;
+    });
+
+  let bestVideo = videoCandidates[0];
+
+  // Filter audio candidate
+  const audioCandidates = rawFormats
+    .filter((f: any) => f.acodec && f.acodec !== "none" && (!f.vcodec || f.vcodec === "none"))
+    .sort((a: any, b: any) => {
+      const aM4a = a.ext === "m4a" || a.ext === "mp4" ? 1 : 0;
+      const bM4a = b.ext === "m4a" || b.ext === "mp4" ? 1 : 0;
+      if (bM4a !== aM4a) return bM4a - aM4a;
+      return (b.abr || 0) - (a.abr || 0);
+    });
+
+  let bestAudio = audioCandidates[0];
+
+  if (!bestVideo?.url || !bestAudio?.url) {
+    // Fallback to a single pre-merged stream if separate video/audio aren't available
+    const combo = rawFormats.find((f: any) => f.url && f.acodec !== "none" && f.vcodec !== "none" && f.ext === "mp4");
+    if (combo?.url) {
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", "video/mp4");
+      const proto = combo.url.startsWith("https") ? https : http;
+      const pr = proto.get(combo.url, { headers: { "User-Agent": "Mozilla/5.0" } }, (upstream) => {
+        upstream.pipe(res);
+      });
+      pr.on("error", (e: Error) => { if (!res.headersSent) res.status(500).json({ error: "STREAM_FAILED" }); });
+      req.on("close", () => pr.destroy());
+      return;
+    }
+    res.status(500).json({ error: "NO_STREAM_URL", message: "Could not find stream URLs" });
     return;
   }
 
-  // Phase 2 — ffmpeg merges video + audio into fragmented MP4, pipes to browser
+  videoUrl = bestVideo.url;
+  audioUrl = bestAudio.url;
+
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.setHeader("Content-Type", "video/mp4");
 
@@ -219,19 +315,8 @@ router.get("/youtube/download", async (req, res) => {
   });
 
   ffmpegProcess.stdout.pipe(res);
-
-  ffmpegProcess.stderr.on("data", (chunk: Buffer) => {
-    req.log?.info?.({ stderr: chunk.toString() }, "ffmpeg progress");
-  });
-
   ffmpegProcess.on("error", (err: Error) => {
-    req.log?.error?.({ err }, "ffmpeg spawn error");
     if (!res.headersSent) res.status(500).json({ error: "STREAM_FAILED", message: "Streaming process failed" });
-  });
-
-  ffmpegProcess.on("close", (code) => {
-    if (clientGone) return;
-    if (code !== 0) req.log?.error?.({ code }, "ffmpeg exited with non-zero code");
   });
 });
 
