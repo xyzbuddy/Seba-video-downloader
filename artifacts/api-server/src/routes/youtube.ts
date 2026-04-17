@@ -41,7 +41,7 @@ const QUALITY_LABELS: Record<number, string> = {
 const router: IRouter = Router();
 
 // ── Invidious API Fallback ──────────────────────────────────────────────────
-async function fetchInvidious(videoId: string) {
+async function fetchInvidious(videoId: string): Promise<any> {
   try {
     const listReq = await fetch("https://api.invidious.io/instances.json?sort_by=health");
     if (!listReq.ok) return null;
@@ -60,7 +60,7 @@ async function fetchInvidious(videoId: string) {
           signal: controller.signal
         });
         if (!res.ok) throw new Error("bad status");
-        const data = await res.json();
+        const data = (await res.json()) as any;
         if (!data.title || (!data.adaptiveFormats && !data.formatStreams)) throw new Error("missing data");
         return data; // Return full info
       })
