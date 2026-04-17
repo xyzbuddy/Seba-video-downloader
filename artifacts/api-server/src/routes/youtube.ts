@@ -56,8 +56,14 @@ router.get("/youtube/info", async (req, res) => {
   try {
     const { stdout } = await execFileAsync(
       YT_DLP,
-      ["--dump-json", "--no-playlist", "--no-warnings", url],
-      { timeout: 30000 }
+      [
+        "--dump-json",
+        "--no-playlist",
+        "--no-warnings",
+        "--extractor-args", "youtube:player_client=android",
+        url
+      ],
+      { timeout: 35000, maxBuffer: 10 * 1024 * 1024 }
     );
 
     const info = JSON.parse(stdout.trim());
@@ -119,8 +125,14 @@ router.get("/youtube/download", async (req, res) => {
   try {
     const { stdout } = await execFileAsync(
       YT_DLP,
-      ["--dump-json", "--no-playlist", "--no-warnings", url],
-      { timeout: 30000 }
+      [
+        "--dump-json",
+        "--no-playlist",
+        "--no-warnings",
+        "--extractor-args", "youtube:player_client=android",
+        url
+      ],
+      { timeout: 35000, maxBuffer: 10 * 1024 * 1024 }
     );
     const info = JSON.parse(stdout.trim());
     const rawFormats = info.formats || [];
