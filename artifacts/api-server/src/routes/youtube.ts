@@ -2,7 +2,12 @@ import { Router, type IRouter } from "express";
 import https from "https";
 import http from "http";
 import ffmpegStatic from "ffmpeg-static";
-import { execFileSync, spawn } from "child_process";
+import { execFileSync, spawn, execFile } from "child_process";
+import { promisify } from "util";
+import path from "path";
+import fs from "fs";
+
+const execFileAsync = promisify(execFile);
 
 // ── ffmpeg ────────────────────────────────────────────────────────────────────
 function resolveFfmpegBin(): string {
@@ -14,6 +19,21 @@ function resolveFfmpegBin(): string {
   }
 }
 const FFMPEG_BIN = resolveFfmpegBin();
+
+// ── yt-dlp path ───────────────────────────────────────────────────────────────
+function resolveYtDlp(): string {
+  // 1. Check beside the dist bundle (artifacts/api-server/yt-dlp)
+  const beside = path.join(__dirname, "..", "yt-dlp" + (process.platform === "win32" ? ".exe" : ""));
+  if (fs.existsSync(beside)) return beside;
+  // 2. Check system PATH
+  try {
+    const which = execFileSync(process.platform === "win32" ? "where" : "which", ["yt-dlp"], { encoding: "utf8" }).trim();
+    if (which) return which.split("\n")[0].trim();
+  } catch {}
+  // 3. Fallback
+  return "yt-dlp";
+}
+const YT_DLP = resolveYtDlp();
 
 const router: IRouter = Router();
 
@@ -47,67 +67,52 @@ const QUALITY_LABELS: Record<number, string> = {
   2160: "4K", 1440: "1440p", 1080: "1080p", 720: "720p", 480: "480p", 360: "360p",
 };
 
-// ── Invidious instances (ordered by reliability) ──────────────────────────────
-// These are manually verified to work from datacenter IPs
-const INVIDIOUS_INSTANCES = [
-  "https://inv.thepixora.com",
-  "https://invidious.perennialte.ch",
-  "https://iv.melmac.space",
-  "https://invidious.moonkeki.gr",
-  "https://invidious.reallyaweso.me",
-  "https://yt.cdaut.de",
-  "https://invidious.privacydev.net",
-  "https://invidious.jing.rocks",
+// ── YouTube oEmbed – always works, gives title + thumbnail ───────────────────
+async function fetchYouTubeOEmbed(videoId: string) {
+  const res = await fetch(
+    `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
+    { signal: AbortSignal.timeout(8000) }
+  );
+  if (!res.ok) throw new Error(`oEmbed HTTP ${res.status}`);
+  return res.json() as Promise<{
+    title: string;
+    author_name: string;
+    thumbnail_url: string;
+  }>;
+}
+
+// ── yt-dlp with multiple player client fallbacks ─────────────────────────────
+const YT_DLP_CLIENTS = [
+  "mweb",           // mobile web – usually not datacenter-blocked
+  "web_creator",    // YouTube Studio client
+  "android_testsuite", // internal Android test client
+  "tv_embedded",    // TV embedded player
 ];
 
-interface InvidiousFormat {
-  url: string;
-  type: string;
-  resolution?: string;
-  qualityLabel?: string;
-  bitrate?: number;
-  encoding?: string;
-  audioSampleRate?: number;
-}
-
-interface InvidiousVideoData {
-  videoId: string;
-  title: string;
-  videoThumbnails: Array<{ url: string; width: number; height: number }>;
-  lengthSeconds: number;
-  author: string;
-  viewCount: number;
-  adaptiveFormats: InvidiousFormat[];
-  formatStreams: InvidiousFormat[];
-}
-
-async function fetchFromInvidious(videoId: string): Promise<InvidiousVideoData | null> {
-  const fields = "videoId,title,videoThumbnails,lengthSeconds,author,viewCount,adaptiveFormats,formatStreams";
-
-  // Race all instances — first one to respond wins
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
-
-  try {
-    const result = await Promise.any(
-      INVIDIOUS_INSTANCES.map(async (base) => {
-        const res = await fetch(`${base}/api/v1/videos/${videoId}?fields=${fields}`, {
-          signal: controller.signal,
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status} from ${base}`);
-        const data = await res.json() as InvidiousVideoData;
-        if (!data.title) throw new Error("no title");
-        return data;
-      })
-    );
-    clearTimeout(timeout);
-    controller.abort();
-    return result;
-  } catch {
-    clearTimeout(timeout);
-    return null;
+async function fetchYtDlpFormats(url: string): Promise<any[] | null> {
+  for (const client of YT_DLP_CLIENTS) {
+    try {
+      const { stdout } = await execFileAsync(
+        YT_DLP,
+        [
+          "--dump-json",
+          "--no-playlist",
+          "--no-warnings",
+          "--no-check-certificate",
+          "--extractor-args", `youtube:player_client=${client}`,
+          url,
+        ],
+        { timeout: 20000, maxBuffer: 10 * 1024 * 1024 }
+      );
+      const data = JSON.parse(stdout.trim());
+      if (data.formats && data.formats.length > 0) {
+        return data.formats;
+      }
+    } catch {
+      // try next client
+    }
   }
+  return null;
 }
 
 // ── GET /youtube/info ─────────────────────────────────────────────────────────
@@ -129,31 +134,35 @@ router.get("/youtube/info", async (req, res) => {
     return;
   }
 
-  const data = await fetchFromInvidious(videoId);
-  if (!data) {
-    res.status(500).json({ error: "FETCH_FAILED", message: "Failed to fetch video information. Please try again." });
-    return;
+  // Step 1: Get title + thumbnail from oEmbed (always works)
+  let title = "YouTube Video";
+  let thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  let channelName = "YouTube";
+
+  try {
+    const oembed = await fetchYouTubeOEmbed(videoId);
+    title = oembed.title;
+    channelName = oembed.author_name;
+    thumbnail = oembed.thumbnail_url;
+  } catch (e) {
+    req.log?.warn?.({ e }, "oEmbed failed, using defaults");
   }
 
-  // Build available formats from adaptive streams
-  const videoHeights = new Set<number>(
-    (data.adaptiveFormats || [])
-      .filter(f => f.type?.includes("video"))
-      .map(f => {
-        const match = (f.qualityLabel || f.resolution || "").match(/(\d+)p/);
-        return match ? parseInt(match[1]) : 0;
-      })
-      .filter(h => h > 0)
-  );
+  // Step 2: Try yt-dlp to get available format heights
+  const formats = await fetchYtDlpFormats(url);
 
-  // Also include pre-merged streams
-  (data.formatStreams || []).forEach(f => {
-    const match = (f.qualityLabel || f.resolution || "").match(/(\d+)p/);
-    if (match) videoHeights.add(parseInt(match[1]));
-  });
+  let availableHeights: Set<number>;
+  if (formats) {
+    availableHeights = new Set<number>(
+      formats.filter((f: any) => f.height).map((f: any) => Number(f.height))
+    );
+  } else {
+    // yt-dlp blocked — offer standard quality options anyway
+    availableHeights = new Set([2160, 1080, 720, 480, 360]);
+  }
 
-  const maxHeight = videoHeights.size > 0 ? Math.max(...videoHeights) : 720;
-  const formats = QUALITY_HEIGHTS
+  const maxHeight = availableHeights.size > 0 ? Math.max(...availableHeights) : 720;
+  const qualityFormats = QUALITY_HEIGHTS
     .filter(h => h <= maxHeight || h === 720)
     .map(h => ({
       formatId: `height_${h}`,
@@ -164,19 +173,15 @@ router.get("/youtube/info", async (req, res) => {
       hasAudio: true,
     }));
 
-  const uniqueFormats = Array.from(new Map(formats.map(item => [item.formatId, item])).values());
-  const thumbnail = data.videoThumbnails?.find(t => t.width >= 480)?.url
-    || data.videoThumbnails?.[0]?.url
-    || "";
+  const uniqueFormats = Array.from(new Map(qualityFormats.map(item => [item.formatId, item])).values());
 
   res.json({
-    id: data.videoId || videoId,
-    title: (data.title || "Video").replace(/\n/g, " ").slice(0, 120).trim(),
+    id: videoId,
+    title: title.replace(/\n/g, " ").slice(0, 120).trim(),
     thumbnail,
-    channelName: data.author || "YouTube",
-    duration: data.lengthSeconds ? Number(data.lengthSeconds) : 0,
-    durationFormatted: formatDuration(data.lengthSeconds ? Number(data.lengthSeconds) : 0),
-    viewCount: data.viewCount ? Number(data.viewCount) : undefined,
+    channelName,
+    duration: 0,
+    durationFormatted: "0:00",
     formats: uniqueFormats,
   });
 });
@@ -196,102 +201,72 @@ router.get("/youtube/download", async (req, res) => {
     return;
   }
 
-  const videoId = extractVideoId(url);
-  if (!videoId) {
-    res.status(400).json({ error: "INVALID_URL", message: "Could not extract video ID" });
-    return;
-  }
-
   const targetHeight = parseInt(formatId.replace("height_", ""), 10) || 720;
   const safeName = (title || "video").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_").slice(0, 80) || "video";
   const filename = `${safeName}_${quality}.mp4`;
 
-  const data = await fetchFromInvidious(videoId);
-  if (!data) {
-    res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Failed to resolve video URLs. Please try again." });
-    return;
-  }
-
-  // Try to find separate video + audio streams for quality merging
-  const videoFormats = (data.adaptiveFormats || []).filter(f => f.type?.includes("video") && f.url);
-  const audioFormats = (data.adaptiveFormats || []).filter(f => f.type?.includes("audio") && f.url);
-
-  // Parse height from format
-  const getHeight = (f: InvidiousFormat) => {
-    const m = (f.qualityLabel || f.resolution || "").match(/(\d+)p/);
-    return m ? parseInt(m[1]) : 0;
-  };
-
-  // Find best video at or below target height
-  const sortedVideo = videoFormats
-    .filter(f => getHeight(f) <= targetHeight && getHeight(f) > 0)
-    .sort((a, b) => getHeight(b) - getHeight(a));
-
-  // Find best audio
-  const sortedAudio = audioFormats
-    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-
-  const bestVideo = sortedVideo[0];
-  const bestAudio = sortedAudio[0];
-
-  const safeFiename = `${safeName}_${quality}.mp4`;
-  res.setHeader("Content-Disposition", `attachment; filename="${safeFiename}"`);
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.setHeader("Content-Type", "video/mp4");
 
-  // Case 1: Have separate video + audio — use ffmpeg to mux
-  if (bestVideo?.url && bestAudio?.url) {
-    req.log?.info?.({ quality, height: getHeight(bestVideo) }, "YouTube/Invidious: merging via ffmpeg");
+  // Pipe yt-dlp output directly — try each client until one works
+  const fmtSelector = `bestvideo[height<=${targetHeight}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${targetHeight}]+bestaudio/best[height<=${targetHeight}]/best`;
 
-    const ffmpegArgs = [
-      "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      "-i", bestVideo.url,
-      "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      "-i", bestAudio.url,
-      "-c", "copy",
-      "-f", "mp4",
-      "-movflags", "frag_keyframe+empty_moov+faststart",
-      "pipe:1",
+  for (const client of YT_DLP_CLIENTS) {
+    const args = [
+      "-f", fmtSelector,
+      "--no-playlist",
+      "--no-warnings",
+      "--no-check-certificate",
+      "--extractor-args", `youtube:player_client=${client}`,
+      "--merge-output-format", "mp4",
+      "-o", "-",
+      url,
     ];
 
-    const ff = spawn(FFMPEG_BIN, ffmpegArgs);
-    let clientGone = false;
-    req.on("close", () => { clientGone = true; if (!ff.killed) ff.kill(); });
-    ff.stdout.pipe(res);
-    ff.on("error", () => { if (!res.headersSent) res.status(500).end(); });
-    return;
-  }
+    const proc = spawn(YT_DLP, args);
+    let resolved = false;
 
-  // Case 2: Use pre-merged formatStreams (these are already combined video+audio)
-  const preMerged = (data.formatStreams || [])
-    .filter(f => f.url)
-    .sort((a, b) => {
-      const aH = getHeight(a);
-      const bH = getHeight(b);
-      // Find closest to target without exceeding
-      const aDiff = Math.abs(aH - targetHeight);
-      const bDiff = Math.abs(bH - targetHeight);
-      return aDiff - bDiff;
+    await new Promise<void>((resolve) => {
+      proc.stdout.once("data", () => {
+        resolved = true;
+        proc.stdout.pipe(res);
+        let clientGone = false;
+        req.on("close", () => { clientGone = true; if (!proc.killed) proc.kill(); });
+        proc.on("close", () => { resolve(); });
+      });
+
+      proc.stderr.on("data", (chunk: Buffer) => {
+        const stderr = chunk.toString();
+        // If blocked/error, mark as unresolved quickly
+        if (stderr.includes("Sign in") || stderr.includes("bot") || stderr.includes("unavailable")) {
+          if (!resolved && !proc.killed) proc.kill("SIGTERM");
+        }
+      });
+
+      proc.on("error", () => {
+        if (!resolved) resolve();
+      });
+
+      proc.on("close", (code) => {
+        if (!resolved) resolve();
+      });
+
+      // Timeout if no data in 15s
+      setTimeout(() => {
+        if (!resolved && !proc.killed) {
+          proc.kill("SIGTERM");
+          resolve();
+        }
+      }, 15000);
     });
 
-  if (preMerged[0]?.url) {
-    const streamUrl = preMerged[0].url;
-    req.log?.info?.({ quality }, "YouTube/Invidious: using pre-merged stream");
-
-    const proto = streamUrl.startsWith("https") ? https : http;
-    const pr = proto.get(streamUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-    }, (upstream) => {
-      if (upstream.headers["content-length"]) {
-        res.setHeader("Content-Length", upstream.headers["content-length"]);
-      }
-      upstream.pipe(res);
-    });
-    pr.on("error", () => { if (!res.headersSent) res.status(500).end(); });
-    req.on("close", () => pr.destroy());
-    return;
+    if (resolved) return; // Successfully piped
   }
 
-  res.status(500).json({ error: "NO_STREAM_URL", message: "Could not find stream URLs for this video." });
+  // All clients failed
+  if (!res.headersSent) {
+    res.status(500).json({ error: "DOWNLOAD_FAILED", message: "Could not download video. YouTube may be blocking this server." });
+  }
 });
 
 router.get("/youtube/download-url", async (_req, res) => {
