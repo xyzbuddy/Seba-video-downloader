@@ -332,8 +332,9 @@ router.get("/youtube/download", async (req, res) => {
   }
 
   // Strategy 2: yt-dlp (fallback for when Invidious stream URLs are IP-locked)
-  const fmtSelector = `bestvideo[height<=${targetHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${targetHeight}][ext=mp4]/best[height<=${targetHeight}]/best`;
-  const ytdlpClients = ["mweb", "tv_embedded", "web_creator"];
+  // Only use clients that don't need JS runtime or PO token to stream
+  const fmtSelector = `best[height<=${targetHeight}][ext=mp4]/best[height<=${targetHeight}]/best`;
+  const ytdlpClients = ["tv_embedded", "android", "android_vr"];
 
   for (const client of ytdlpClients) {
     const proc = spawn(YT_DLP, [
