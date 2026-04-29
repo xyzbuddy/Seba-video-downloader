@@ -18,9 +18,12 @@
     "drizzle-orm": "catalog:",
     "express": "^5",
     "ffmpeg-static": "^5.2.0",
+    "jintr": "^3.3.1",
+    "jsdom": "^29.0.2",
     "pino": "^9",
     "pino-http": "^10",
     "youtubei": "^1.8.5",
+    "youtubei.js": "^17.0.1",
     "ytdl-core": "^4.11.5"
   },
   "devDependencies": {

@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "artifacts/api-server/package.json",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "artifacts/diu-yt-downloader/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist/public"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/artifacts/api-server/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/artifacts/diu-yt-downloader/$1"
+    }
+  ],
+  "installCommand": "pnpm install"
+}

@@ -19,6 +19,8 @@
     "alwaysStrict": true,
     "skipLibCheck": true,
     "target": "es2022",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "types": [],
     "customConditions": ["workspace"]
   }
