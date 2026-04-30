@@ -163,17 +163,79 @@ async function fetchInstagramViaEmbed(url: string): Promise<{
   };
 }
 
-// Fetch Instagram via SnapSave as fallback
-async function fetchInstagramViaSnapSave(url: string): Promise<{
+// Try multiple Instagram download APIs sequentially
+async function fetchInstagramViaThirdParty(url: string, reqLog: any): Promise<{
   downloadUrl: string;
   thumbnail: string;
   title: string;
   duration: number;
   author: string;
 }> {
-  const vm = require("vm") as typeof import("vm");
+  const cleanUrl = url;
+  
+  // Method 1: SaveIG
+  try {
+    const res = await fetch("https://v3.igdownloader.app/api/ajaxSearch", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://igdownloader.app",
+        "Referer": "https://igdownloader.app/"
+      },
+      body: new URLSearchParams({ q: cleanUrl, t: "media", lang: "en" }).toString(),
+    });
+    const data = await res.json() as any;
+    if (data.status === "ok" && data.data) {
+      const html = data.data;
+      const downloadMatch = html.match(/href="([^"]+)"[^>]*>Download Video/i) || html.match(/href="([^"]+)"[^>]*>Download/i);
+      const thumbMatch = html.match(/src="([^"]+)"/i);
+      if (downloadMatch) {
+        return {
+          downloadUrl: downloadMatch[1].replace(/&amp;/g, "&"),
+          thumbnail: thumbMatch ? thumbMatch[1].replace(/&amp;/g, "&") : "",
+          title: "Instagram Video",
+          duration: 0,
+          author: "Instagram",
+        };
+      }
+    }
+  } catch (e) {
+    reqLog?.info?.("SaveIG method failed");
+  }
 
-  const body = new URLSearchParams({ url }).toString();
+  // Method 2: FastDl (formerly iGram)
+  try {
+    const res = await fetch("https://fastdl.app/api/convert", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0",
+        "Origin": "https://fastdl.app",
+        "Referer": "https://fastdl.app/",
+      },
+      body: JSON.stringify({ url: cleanUrl }),
+    });
+    const data = await res.json() as any;
+    if (data.url && Array.isArray(data.url) && data.url.length > 0) {
+      const video = data.url.find((v: any) => v.type === "mp4" || v.ext === "mp4") || data.url[0];
+      if (video && video.url) {
+        return {
+          downloadUrl: video.url,
+          thumbnail: data.meta?.thumb || data.thumb || "",
+          title: data.meta?.title || "Instagram Video",
+          duration: 0,
+          author: "Instagram",
+        };
+      }
+    }
+  } catch (e) {
+    reqLog?.info?.("FastDl method failed");
+  }
+
+  // Method 3: SnapSave fallback
+  const vm = require("vm") as typeof import("vm");
+  const body = new URLSearchParams({ url: cleanUrl }).toString();
   const response = await fetch("https://snapsave.app/action.php", {
     method: "POST",
     headers: {
@@ -181,32 +243,17 @@ async function fetchInstagramViaSnapSave(url: string): Promise<{
       Referer: "https://snapsave.app/",
       Origin: "https://snapsave.app",
       "X-Requested-With": "XMLHttpRequest",
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0 Safari/537.36",
     },
     body,
   });
 
-  if (!response.ok) {
-    throw new Error(`SnapSave request failed: ${response.status}`);
-  }
-
+  if (!response.ok) throw new Error(`SnapSave request failed: ${response.status}`);
   const rawJs = await response.text();
-  if (!rawJs || rawJs.trim().startsWith("<!")) {
-    throw new Error("SnapSave returned non-JS response");
-  }
+  if (!rawJs || rawJs.trim().startsWith("<!")) throw new Error("SnapSave returned non-JS response");
 
   let decodedHtml = "";
-  const ctx = {
-    eval: (code: string) => {
-      decodedHtml = code;
-    },
-    decodeURIComponent,
-    escape,
-    String,
-    Math,
-    RegExp,
-  };
+  const ctx = { eval: (c: string) => { decodedHtml = c; }, decodeURIComponent, escape, String, Math, RegExp };
   vm.runInNewContext(rawJs, ctx, { timeout: 5000 });
 
   if (!decodedHtml || decodedHtml.includes("Error:") || decodedHtml.includes("Unable to connect")) {
@@ -217,17 +264,13 @@ async function fetchInstagramViaSnapSave(url: string): Promise<{
   const thumbUrl = allLinks.find((l) => l.includes("/thumb")) ?? "";
   const videoUrl = allLinks.find((l) => l.includes("/v2"));
 
-  if (!videoUrl) {
-    throw new Error("Could not extract video URL from SnapSave response");
-  }
+  if (!videoUrl) throw new Error("Could not extract video URL from SnapSave response");
 
   const altMatch = decodedHtml.match(/alt="([^"]{5,120})"/);
-  const title = altMatch ? altMatch[1] : "Instagram Reel";
-
   return {
     downloadUrl: videoUrl,
     thumbnail: thumbUrl,
-    title,
+    title: altMatch ? altMatch[1] : "Instagram Reel",
     duration: 0,
     author: "Instagram",
   };
@@ -335,7 +378,7 @@ router.get("/media/info", async (req, res) => {
 
     // Fallback: SnapSave
     try {
-      const igData = await fetchInstagramViaSnapSave(cleanUrl);
+      const igData = await fetchInstagramViaThirdParty(cleanUrl, req.log);
       res.json({
         platform: "instagram",
         title: igData.title.replace(/\n/g, " ").slice(0, 120),
@@ -500,10 +543,10 @@ router.get("/media/download", async (req, res) => {
       req.log?.info?.({ embedErr }, "Instagram embed download failed, trying SnapSave");
     }
 
-    // Fallback: SnapSave
+    // Fallback: multiple 3rd party APIs
     try {
-      const igData = await fetchInstagramViaSnapSave(cleanUrl);
-      proxyStream(igData.downloadUrl, res, req, "https://snapsave.app/");
+      const igData = await fetchInstagramViaThirdParty(cleanUrl, req.log);
+      proxyStream(igData.downloadUrl, res, req, "https://igdownloader.app/");
       return;
     } catch (err) {
       req.log?.error?.({ err }, "All Instagram download methods failed");
