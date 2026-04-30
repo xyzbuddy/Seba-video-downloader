@@ -13,6 +13,11 @@ const targetFile = path.join(targetDir, ytdlpName);
 
 const downloadUrl = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${ytdlpName}`;
 
+if (process.env.VERCEL || process.env.CI) {
+  console.log("Skipping yt-dlp download on CI/Vercel");
+  process.exit(0);
+}
+
 console.log(`Downloading yt-dlp from ${downloadUrl}...`);
 
 function downloadFile(url, dest) {
