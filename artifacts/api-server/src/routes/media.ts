@@ -8,9 +8,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 
 const execFileAsync = promisify(execFile);
-// Resolve yt-dlp relative to the bundle file (dist/index.mjs → ../yt-dlp)
-// process.cwd() changes in production (workspace root), __dirname does not.
-const YT_DLP = path.join(__dirname, "..", "yt-dlp");
+const YT_DLP = path.join(__dirname, "..", "yt-dlp" + (process.platform === "win32" ? ".exe" : ""));
 
 const router: IRouter = Router();
 
@@ -24,8 +22,7 @@ export function detectPlatform(url: string): Platform | null {
   return null;
 }
 
-// Strip only known tracking params from Instagram URLs — keep the rest intact
-// so TikWM can still parse the reel/post shortcode correctly.
+// Strip only known tracking params from Instagram URLs
 const TRACKING_PARAMS = new Set([
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
   "fbclid", "igsh", "igshid", "ref",
@@ -37,7 +34,6 @@ function cleanInstagramUrl(url: string): string {
     for (const key of [...parsed.searchParams.keys()]) {
       if (TRACKING_PARAMS.has(key)) parsed.searchParams.delete(key);
     }
-    // Remove trailing slash from path for consistency
     parsed.pathname = parsed.pathname.replace(/\/$/, "");
     parsed.hash = "";
     return parsed.toString();
@@ -46,11 +42,12 @@ function cleanInstagramUrl(url: string): string {
   }
 }
 
+function extractInstagramShortcode(url: string): string | null {
+  const m = url.match(/\/(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/);
+  return m ? m[2] : null;
+}
+
 // Proxy a video stream from a CDN URL to the HTTP response.
-// - Follows up to 5 HTTP redirects (CDN URLs sometimes redirect).
-// - Checks the upstream status code before piping to avoid sending
-//   a 403/404 error body as if it were a valid video file.
-// - Accepts an optional referer to send the correct platform origin.
 function proxyStream(directUrl: string, res: any, req: any, referer = "") {
   const MAX_REDIRECTS = 5;
 
@@ -64,25 +61,20 @@ function proxyStream(directUrl: string, res: any, req: any, referer = "") {
     if (referer) headers["Referer"] = referer;
 
     const reqObj = proto.get(url, { headers }, (upstream) => {
-      // Follow redirects
       const status = upstream.statusCode ?? 0;
       if (status >= 300 && status < 400) {
         const location = upstream.headers.location;
         upstream.destroy();
         if (location && redirectsLeft > 0) {
-          // Resolve relative redirects
           const next = location.startsWith("http") ? location : new URL(location, url).toString();
           doRequest(next, redirectsLeft - 1);
           return;
         }
-        req.log?.error?.({ status, location }, "Too many redirects or missing Location");
         if (!res.headersSent) res.status(502).json({ error: "Too many redirects from CDN" });
         return;
       }
 
-      // Reject non-2xx responses
       if (status < 200 || status >= 300) {
-        req.log?.error?.({ status }, "CDN returned non-2xx status");
         upstream.destroy();
         if (!res.headersSent) res.status(502).json({ error: `CDN error: HTTP ${status}` });
         return;
@@ -93,13 +85,11 @@ function proxyStream(directUrl: string, res: any, req: any, referer = "") {
       }
       upstream.pipe(res);
       upstream.on("error", (err: Error) => {
-        req.log?.error?.({ err }, "Upstream stream error");
         if (!res.headersSent) res.status(500).json({ error: "Stream failed" });
       });
     });
 
     reqObj.on("error", (err: Error) => {
-      req.log?.error?.({ err }, "Proxy request error");
       if (!res.headersSent) res.status(500).json({ error: "Failed to connect to video server" });
     });
     req.on("close", () => reqObj.destroy());
@@ -108,10 +98,72 @@ function proxyStream(directUrl: string, res: any, req: any, referer = "") {
   doRequest(directUrl, MAX_REDIRECTS);
 }
 
-// Fetch Instagram video info via SnapSave API.
-// SnapSave returns obfuscated JavaScript that decodes into HTML containing
-// rapidcdn.app URLs for the thumbnail and video. We run it in a Node VM sandbox
-// to extract those URLs without touching the DOM.
+// Fetch Instagram video info via embed page scraping (no login needed for public posts)
+async function fetchInstagramViaEmbed(url: string): Promise<{
+  downloadUrl: string;
+  thumbnail: string;
+  title: string;
+  duration: number;
+  author: string;
+}> {
+  const shortcode = extractInstagramShortcode(url);
+  if (!shortcode) throw new Error("Could not extract Instagram shortcode");
+
+  // Use the public embed endpoint - works without login for public posts
+  const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/captioned/`;
+  
+  const response = await fetch(embedUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Sec-Fetch-Dest": "iframe",
+      "Sec-Fetch-Mode": "navigate",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Instagram embed returned ${response.status}`);
+  }
+
+  const html = await response.text();
+
+  // Extract video URL
+  const videoUrlMatch = html.match(/https:\/\/[^\s"'<>\\]+\.mp4[^\s"'<>\\]*/g);
+  if (!videoUrlMatch || videoUrlMatch.length === 0) {
+    // Try looking for video_url in JSON
+    const jsonMatch = html.match(/"video_url":"(https:[^"]+)"/);
+    if (!jsonMatch) {
+      throw new Error("Could not extract video URL from Instagram embed");
+    }
+    const videoUrl = jsonMatch[1].replace(/\\u0026/g, "&").replace(/\\/g, "");
+    const thumbMatch = html.match(/"thumbnail_src":"([^"]+)"/);
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    return {
+      downloadUrl: videoUrl,
+      thumbnail: thumbMatch ? thumbMatch[1].replace(/\\/g, "") : "",
+      title: titleMatch ? titleMatch[1].replace(/ • Instagram$/, "").trim() : "Instagram Video",
+      duration: 0,
+      author: "Instagram",
+    };
+  }
+
+  const videoUrl = videoUrlMatch[0];
+  const thumbMatch = html.match(/https:\/\/[^\s"'<>\\]+\.(jpg|jpeg|png)[^\s"'<>\\]*/);
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const authorMatch = html.match(/<a[^>]+class="[^"]*UsernameText[^"]*"[^>]*>([^<]+)<\/a>/i)
+    || html.match(/class="[^"]*author[^"]*"[^>]*>([^<]+)</i);
+
+  return {
+    downloadUrl: videoUrl,
+    thumbnail: thumbMatch ? thumbMatch[0] : "",
+    title: titleMatch ? titleMatch[1].replace(/ • Instagram$/, "").trim() : "Instagram Video",
+    duration: 0,
+    author: authorMatch ? authorMatch[1].trim() : "Instagram",
+  };
+}
+
+// Fetch Instagram via SnapSave as fallback
 async function fetchInstagramViaSnapSave(url: string): Promise<{
   downloadUrl: string;
   thumbnail: string;
@@ -144,7 +196,6 @@ async function fetchInstagramViaSnapSave(url: string): Promise<{
     throw new Error("SnapSave returned non-JS response");
   }
 
-  // Execute the obfuscated JS in a sandboxed context
   let decodedHtml = "";
   const ctx = {
     eval: (code: string) => {
@@ -158,11 +209,10 @@ async function fetchInstagramViaSnapSave(url: string): Promise<{
   };
   vm.runInNewContext(rawJs, ctx, { timeout: 5000 });
 
-  if (!decodedHtml) {
-    throw new Error("SnapSave JS did not produce any decoded output");
+  if (!decodedHtml || decodedHtml.includes("Error:") || decodedHtml.includes("Unable to connect")) {
+    throw new Error("SnapSave could not process this Instagram URL");
   }
 
-  // Extract rapidcdn.app URLs for thumbnail and video — stop at quote/space/backslash
   const allLinks: string[] = decodedHtml.match(/https:\/\/d\.rapidcdn\.app\/[^\s"'<>\\]+/g) ?? [];
   const thumbUrl = allLinks.find((l) => l.includes("/thumb")) ?? "";
   const videoUrl = allLinks.find((l) => l.includes("/v2"));
@@ -171,7 +221,6 @@ async function fetchInstagramViaSnapSave(url: string): Promise<{
     throw new Error("Could not extract video URL from SnapSave response");
   }
 
-  // Try to pull a title from the decoded HTML (img alt or any text snippet)
   const altMatch = decodedHtml.match(/alt="([^"]{5,120})"/);
   const title = altMatch ? altMatch[1] : "Instagram Reel";
 
@@ -257,9 +306,34 @@ router.get("/media/info", async (req, res) => {
     return;
   }
 
-  // ── Instagram — SnapSave API ─────────────────────────────────────────────
+  // ── Instagram — try embed scraping first, then SnapSave as fallback ──────
   if (platform === "instagram") {
     const cleanUrl = cleanInstagramUrl(url);
+    
+    // Try embed scraping first
+    try {
+      const igData = await fetchInstagramViaEmbed(cleanUrl);
+      res.json({
+        platform: "instagram",
+        title: igData.title.replace(/\n/g, " ").slice(0, 120),
+        thumbnail: igData.thumbnail,
+        duration: igData.duration,
+        author: igData.author,
+        downloadUrl: igData.downloadUrl,
+        formats: [
+          {
+            formatId: "embed",
+            quality: "Best",
+            label: "Best Quality (MP4)",
+          },
+        ],
+      });
+      return;
+    } catch (embedErr) {
+      req.log?.info?.({ embedErr }, "Instagram embed scraping failed, trying SnapSave");
+    }
+
+    // Fallback: SnapSave
     try {
       const igData = await fetchInstagramViaSnapSave(cleanUrl);
       res.json({
@@ -277,8 +351,9 @@ router.get("/media/info", async (req, res) => {
           },
         ],
       });
+      return;
     } catch (err) {
-      req.log?.error?.({ err }, "SnapSave Instagram fetch failed");
+      req.log?.error?.({ err }, "All Instagram fetch methods failed");
       res
         .status(500)
         .json({ error: "Could not fetch this video. Make sure the account is public and the link is valid." });
@@ -290,7 +365,10 @@ router.get("/media/info", async (req, res) => {
   try {
     const { stdout } = await execFileAsync(
       YT_DLP,
-      ["--dump-json", "--no-playlist", "--no-warnings", url],
+      ["--dump-json", "--no-playlist", "--no-warnings",
+       "--no-check-certificate",
+       "--add-header", "Accept-Language:en-US,en;q=0.9",
+       url],
       { timeout: 30000 }
     );
 
@@ -335,9 +413,15 @@ router.get("/media/info", async (req, res) => {
       author: info.uploader || info.channel || "Unknown",
       formats,
     });
-  } catch (err) {
+  } catch (err: any) {
     req.log?.error?.({ err }, "yt-dlp Facebook info failed");
-    res.status(500).json({ error: "Failed to fetch video info. The content might be private or unavailable." });
+    // Try to give a more helpful error message
+    const errMsg = err?.message || "";
+    if (errMsg.includes("private") || errMsg.includes("login")) {
+      res.status(500).json({ error: "This video is private or requires login to view." });
+    } else {
+      res.status(500).json({ error: "Failed to fetch video info. The content might be private or unavailable." });
+    }
   }
 });
 
@@ -403,14 +487,26 @@ router.get("/media/download", async (req, res) => {
     return;
   }
 
-  // ── Instagram — SnapSave API ──────────────────────────────────────────────
+  // ── Instagram — try embed then SnapSave ───────────────────────────────────
   if (platform === "instagram") {
     const cleanUrl = cleanInstagramUrl(url);
+
+    // Try embed first
+    try {
+      const igData = await fetchInstagramViaEmbed(cleanUrl);
+      proxyStream(igData.downloadUrl, res, req, "https://www.instagram.com/");
+      return;
+    } catch (embedErr) {
+      req.log?.info?.({ embedErr }, "Instagram embed download failed, trying SnapSave");
+    }
+
+    // Fallback: SnapSave
     try {
       const igData = await fetchInstagramViaSnapSave(cleanUrl);
       proxyStream(igData.downloadUrl, res, req, "https://snapsave.app/");
+      return;
     } catch (err) {
-      req.log?.error?.({ err }, "SnapSave Instagram download failed");
+      req.log?.error?.({ err }, "All Instagram download methods failed");
       if (!res.headersSent)
         res.status(500).json({ error: "Could not fetch this video. Make sure the account is public and the link is valid." });
     }
@@ -418,11 +514,6 @@ router.get("/media/download", async (req, res) => {
   }
 
   // ── Facebook — yt-dlp piped to stdout ────────────────────────────────────
-  // Pipe yt-dlp stdout directly to the response — same pattern as YouTube.
-  // Using --get-url + proxyStream fails in production because Facebook CDN URLs
-  // are session-locked and expire too quickly for a second HTTP request.
-  // Piping yt-dlp stdout means yt-dlp owns the entire download (cookies,
-  // redirects, auth) and data flows directly from Facebook CDN → yt-dlp → browser.
   const fmtMap: Record<string, string> = {
     best: "best[ext=mp4]/best",
     worst: "worst[ext=mp4]/worst",
@@ -438,6 +529,8 @@ router.get("/media/download", async (req, res) => {
     "-o", "-",
     "--no-playlist",
     "--no-warnings",
+    "--no-check-certificate",
+    "--add-header", "Accept-Language:en-US,en;q=0.9",
     url,
   ]);
 
