@@ -5,8 +5,8 @@
   "outputDirectory": "dist/public",
   "rewrites": [
     {
-      "source": "/api/:match*",
-      "destination": "https://video-downloader-8drh.onrender.com/api/:match*"
+      "source": "/api/(.*)",
+      "destination": "https://video-downloader-8drh.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",
