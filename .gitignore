@@ -50,3 +50,7 @@ Thumbs.db
 
 # yt-dlp Python package for the background worker (installed by postinstall)
 artifacts/api-server/.pydeps/
+
+# yt-dlp binary, downloaded by postinstall for this machine
+artifacts/api-server/yt-dlp
+artifacts/api-server/yt-dlp.exe

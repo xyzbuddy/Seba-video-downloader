@@ -1,0 +1,9 @@
+.git
+**/node_modules
+**/dist
+artifacts/api-server/.pydeps
+artifacts/api-server/yt-dlp
+artifacts/api-server/yt-dlp.exe
+attached_assets
+.vscode
+*.log

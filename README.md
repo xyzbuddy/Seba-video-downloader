@@ -106,7 +106,19 @@ npx pnpm@10.33.0 run typecheck
 
 ## Deploy
 
-**One service (Railway, Render, a VPS).** `pnpm install && pnpm run build`, then `pnpm run start`. The API server also serves the built website, so one service runs everything. Railway is already set up through `railway.toml`. Make sure the server has ffmpeg, and ideally Python 3 for the faster lookups.
+The website alone can live on Vercel, but downloads need a real server: it runs yt-dlp and ffmpeg and streams large files, which serverless platforms can't do. The included `Dockerfile` packs the API server, ffmpeg, Python and yt-dlp into one container.
+
+**Render (Docker, free plan works):**
+
+1. In Render, choose **New → Web Service** and connect this repository.
+2. Set **Language** to **Docker**. Leave the root directory empty; Render finds the `Dockerfile`.
+3. Pick a plan and create the service. Render sets `PORT` itself.
+4. When the deploy is live, open `https://<your-service>.onrender.com/api/healthz`. It should answer `{"status":"ok"}`.
+5. Put that address in `artifacts/diu-yt-downloader/vercel.json` (the `/api/(.*)` rewrite) and push, so the Vercel website talks to it.
+
+The same container also serves the website, so `https://<your-service>.onrender.com` works on its own too. On Render's free plan the server sleeps after 15 minutes without visits, and the first request afterwards takes about a minute.
+
+**Without Docker (Railway, a VPS).** `pnpm install && pnpm run build`, then `pnpm run start`. The API server also serves the built website, so one service runs everything. Railway is already set up through `railway.toml`. Make sure the server has ffmpeg, and ideally Python 3 for the faster lookups.
 
 **Website on Vercel, API elsewhere.** `artifacts/diu-yt-downloader/vercel.json` forwards `/api/*` to the API server. Change the `destination` there to your API's address. Vercel skips the yt-dlp download automatically.
 

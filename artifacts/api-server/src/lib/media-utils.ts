@@ -119,7 +119,12 @@ export function detectPlatform(raw: string): Platform | null {
 }
 
 // ── yt-dlp ────────────────────────────────────────────────────────────────────
-const YTDLP_BASE_ARGS = ["--no-playlist", "--no-warnings", "--ignore-config", "--no-cache-dir"];
+// deno or Node solves YouTube's JavaScript challenge; servers (and the Docker
+// image) usually only have Node, which yt-dlp doesn't use unless asked.
+const YTDLP_BASE_ARGS = [
+  "--no-playlist", "--no-warnings", "--ignore-config", "--no-cache-dir",
+  "--js-runtimes", "deno", "--js-runtimes", "node",
+];
 
 export async function ytDlpJson(url: string, extraArgs: string[] = [], timeoutMs = 45000): Promise<any> {
   try {
