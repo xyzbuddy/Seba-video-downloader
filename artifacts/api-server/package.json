@@ -10,24 +10,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
-    "@workspace/api-zod": "workspace:*",
-    "@workspace/db": "workspace:*",
-    "cookie-parser": "^1.4.7",
     "cors": "^2",
-    "drizzle-orm": "catalog:",
     "express": "^5",
     "ffmpeg-static": "^5.2.0",
-    "jintr": "^3.3.1",
-    "jsdom": "^29.0.2",
     "pino": "^9",
-    "pino-http": "^10",
-    "youtubei": "^1.8.5",
-    "youtubei.js": "^17.0.1",
-    "ytdl-core": "^4.11.5"
+    "pino-http": "^10"
   },
   "devDependencies": {
-    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",

@@ -1,0 +1,12 @@
+# Render Blueprint: deploys the whole site (website + download server) from the Dockerfile.
+# In Render: New → Blueprint → pick this repository → Apply.
+# The site is then live at https://seba-video-downloader.onrender.com
+# (if Render adds a suffix to that name, update artifacts/diu-yt-downloader/vercel.json to match).
+services:
+  - type: web
+    name: seba-video-downloader
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/healthz
+    autoDeploy: true

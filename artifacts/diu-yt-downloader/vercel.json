@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://video-downloader-8drh.onrender.com/api/$1"
+      "destination": "https://seba-video-downloader.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",

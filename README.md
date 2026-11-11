@@ -52,8 +52,9 @@ artifacts/
 └── diu-yt-downloader/          The website (React 19, Vite, Tailwind CSS 4, wouter)
     ├── src/pages/ToolPage.tsx    home page and the four platform pages
     └── src/components/           LinkForm, ResultPanel, header, footer, info sections
-lib/                            shared workspace packages (OpenAPI spec, generated clients, db)
 scripts/download-ytdlp.js       postinstall: fetches yt-dlp and installs the Python worker's package
+Dockerfile                      one container: server + website + ffmpeg + Python + yt-dlp
+render.yaml / railway.toml      one-click deploy settings for Render and Railway
 ```
 
 ## API
@@ -108,19 +109,19 @@ npx pnpm@10.33.0 run typecheck
 
 The website alone can live on Vercel, but downloads need a real server: it runs yt-dlp and ffmpeg and streams large files, which serverless platforms can't do. The included `Dockerfile` packs the API server, ffmpeg, Python and yt-dlp into one container.
 
-**Render (Docker, free plan works):**
+**Render, one click (free plan works).** The repo includes a Render Blueprint, `render.yaml`.
 
-1. In Render, choose **New → Web Service** and connect this repository.
-2. Set **Language** to **Docker**. Leave the root directory empty; Render finds the `Dockerfile`.
-3. Pick a plan and create the service. Render sets `PORT` itself.
-4. When the deploy is live, open `https://<your-service>.onrender.com/api/healthz`. It should answer `{"status":"ok"}`.
-5. Put that address in `artifacts/diu-yt-downloader/vercel.json` (the `/api/(.*)` rewrite) and push, so the Vercel website talks to it.
+1. In Render, choose **New → Blueprint**, pick this repository, then **Apply**.
+2. Wait for the first deploy (the Docker build takes a few minutes).
+3. Open `https://seba-video-downloader.onrender.com/api/healthz`. It should answer `{"status":"ok"}`. The whole site works at `https://seba-video-downloader.onrender.com`.
 
-The same container also serves the website, so `https://<your-service>.onrender.com` works on its own too. On Render's free plan the server sleeps after 15 minutes without visits, and the first request afterwards takes about a minute.
+Every push to `main` redeploys automatically. On Render's free plan the server sleeps after 15 minutes without visits, and the first request afterwards takes about a minute.
 
-**Without Docker (Railway, a VPS).** `pnpm install && pnpm run build`, then `pnpm run start`. The API server also serves the built website, so one service runs everything. Railway is already set up through `railway.toml`. Make sure the server has ffmpeg, and ideally Python 3 for the faster lookups.
+**Vercel (website) + Render (downloads).** `artifacts/diu-yt-downloader/vercel.json` already forwards `/api/*` to `https://seba-video-downloader.onrender.com`, so the Vercel site works as soon as the Render service is live. If Render gave your service a different address, change that one `destination` line and push.
 
-**Website on Vercel, API elsewhere.** `artifacts/diu-yt-downloader/vercel.json` forwards `/api/*` to the API server. Change the `destination` there to your API's address. Vercel skips the yt-dlp download automatically.
+**Railway.** `railway.toml` builds the same `Dockerfile`; create a project from this repository and it deploys as is.
+
+**Any other server (VPS, Fly.io, Koyeb, …).** Build and run the `Dockerfile`, or without Docker: `pnpm install && pnpm run build`, then `pnpm run start` (needs ffmpeg; Python 3 makes lookups faster).
 
 ### Settings
 
