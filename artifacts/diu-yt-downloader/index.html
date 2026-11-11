@@ -1,14 +1,32 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Seba Downloader</title>
-    <meta name="description" content="Seba Downloader — Download videos from YouTube, Facebook, Instagram and TikTok for free. No signup required. Supports up to 4K quality." />
+    <meta
+      name="description"
+      content="Paste a YouTube, Facebook, Instagram or TikTok link and save the video to your device. Free, no account, up to 4K."
+    />
+    <meta property="og:title" content="Seba Downloader" />
+    <meta property="og:description" content="Save videos from YouTube, Facebook, Instagram and TikTok. Free, no account." />
+    <meta property="og:image" content="/opengraph.jpg" />
+    <meta name="theme-color" content="#f2f4ef" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Light by default; dark only when the visitor picked it with the toggle.
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem("seba-theme"); } catch (e) {}
+        if (t === "dark") document.documentElement.classList.add("dark");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

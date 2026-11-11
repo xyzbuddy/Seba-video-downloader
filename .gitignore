@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# yt-dlp Python package for the background worker (installed by postinstall)
+artifacts/api-server/.pydeps/
