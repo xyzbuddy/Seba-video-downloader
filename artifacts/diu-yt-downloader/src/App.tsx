@@ -1,43 +1,47 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/not-found";
-import Home from "@/pages/Home";
-import YouTubePage from "@/pages/YouTubePage";
-import FacebookPage from "@/pages/FacebookPage";
-import InstagramPage from "@/pages/InstagramPage";
-import TikTokPage from "@/pages/TikTokPage";
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import { Link, Route, Router, Switch } from "wouter";
+import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
+import { ToolPage } from "@/pages/ToolPage";
+import { PLATFORMS, PLATFORM_META } from "@/lib/platforms";
 
-const queryClient = new QueryClient();
-
-function Router() {
+function NotFound() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/youtube" component={YouTubePage} />
-      <Route path="/facebook" component={FacebookPage} />
-      <Route path="/instagram" component={InstagramPage} />
-      <Route path="/tiktok" component={TikTokPage} />
-      <Route component={NotFound} />
-    </Switch>
+    <main id="main" className="mx-auto max-w-5xl px-4 pt-20 sm:px-6">
+      <h1 className="text-5xl font-bold">This page doesn't exist.</h1>
+      <p className="mt-4 text-lg text-ink-soft">The address may be mistyped, or the page was moved.</p>
+      <Link href="/" className="mt-8 inline-flex min-h-12 items-center rounded-2xl bg-brand px-6 font-bold text-brand-ink">
+        Go to the downloader
+      </Link>
+    </main>
   );
 }
 
-function App() {
+export default function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <Router base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-10 focus:rounded-lg focus:bg-action focus:px-4 focus:py-2 focus:font-bold focus:text-action-ink"
+      >
+        Skip to content
+      </a>
+      <div className="flex min-h-dvh flex-col">
+        <SiteHeader />
+        <div className="flex-1">
+          <Switch>
+            <Route path="/">{() => <ToolPage key="home" />}</Route>
+            {PLATFORMS.map((p) => (
+              <Route key={p} path={PLATFORM_META[p].path}>
+                {() => <ToolPage key={p} platform={p} />}
+              </Route>
+            ))}
+            <Route>
+              <NotFound />
+            </Route>
+          </Switch>
+        </div>
+        <SiteFooter />
+      </div>
+    </Router>
   );
 }
-
-export default App;
